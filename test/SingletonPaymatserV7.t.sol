@@ -8,7 +8,7 @@ import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserO
 import {EntryPoint} from "account-abstraction-v7/core/EntryPoint.sol";
 import {SimpleAccountFactory, SimpleAccount} from "account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
-import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
+import {SingletonPaymaster} from "../src/SingletonPaymasterV7.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
