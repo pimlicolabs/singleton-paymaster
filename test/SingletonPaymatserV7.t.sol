@@ -8,7 +8,7 @@ import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserO
 import {EntryPoint} from "account-abstraction-v7/core/EntryPoint.sol";
 import {SimpleAccountFactory, SimpleAccount} from "account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
-import {SingletonPaymaster} from "../src/SingletonPaymasterV7.sol";
+import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
@@ -19,7 +19,7 @@ contract SingletonPaymasterTest is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymaster paymaster;
+    SingletonPaymasterV7 paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -38,7 +38,7 @@ contract SingletonPaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymaster(entryPoint, paymasterOwner);
+        paymaster = new SingletonPaymasterV7(entryPoint, paymasterOwner);
         paymaster.deposit{value: 100e18}();
     }
 

@@ -18,7 +18,7 @@ using UserOperationLib for PackedUserOperation;
 using ECDSA for bytes32;
 using MessageHashUtils for bytes32;
 
-contract SingletonPaymaster is BasePaymaster {
+contract SingletonPaymasterV7 is BasePaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -86,49 +86,49 @@ contract SingletonPaymaster is BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     // @notice Skipped in verifying mode because postOp isn't called when context is empty.
-    function _postOp(PostOpMode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+    function _postOp(PostOpMode, bytes calldata _context, uint256 _actualGasCost, uint256 _actualUserOpFeePerGas)
         internal
         override
     {
-        (address sender, address token, uint256 price) = abi.decode(context, (address, address, uint256));
-        uint256 costInToken = ((actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * price) / 1e18;
+        (address sender, address token, uint256 price) = abi.decode(_context, (address, address, uint256));
+        uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * price) / 1e18;
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
     }
 
     function _validatePaymasterUserOp(
-        PackedUserOperation calldata userOp,
+        PackedUserOperation calldata _userOp,
         bytes32, /* userOpHash */
         uint256 /* maxCost */
     ) internal virtual override returns (bytes memory, uint256) {
-        (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(userOp.paymasterAndData);
+        (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(_userOp.paymasterAndData);
 
         if (mode == 0) {
-            return _validateVerifyingMode(userOp, paymasterConfig);
+            return _validateVerifyingMode(_userOp, paymasterConfig);
         } else if (mode == 1) {
-            return _validateERC20Mode(userOp, paymasterConfig);
+            return _validateERC20Mode(_userOp, paymasterConfig);
         }
 
         // only valid modes are 1 and 0
         revert PaymasterDataModeInvalid();
     }
 
-    function _validateVerifyingMode(PackedUserOperation calldata userOp, bytes calldata paymasterConfig)
+    function _validateVerifyingMode(PackedUserOperation calldata _userOp, bytes calldata _paymasterConfig)
         internal
         view
         returns (bytes memory, uint256)
     {
-        if (paymasterConfig.length < 12) {
+        if (_paymasterConfig.length < 12) {
             revert PaymasterConfigLengthInvalid();
         }
 
         uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(paymasterConfig[cursor:cursor += 6]));
-        bytes memory signature = paymasterConfig[cursor:];
+        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        bytes memory signature = _paymasterConfig[cursor:];
 
         require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(userOp, validUntil, validAfter, address(0), 0));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, address(0), 0));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
@@ -137,21 +137,21 @@ contract SingletonPaymaster is BasePaymaster {
         return ("", validationData);
     }
 
-    function _validateERC20Mode(PackedUserOperation calldata userOp, bytes calldata paymasterConfig)
+    function _validateERC20Mode(PackedUserOperation calldata _userOp, bytes calldata _paymasterConfig)
         internal
         view
         returns (bytes memory, uint256)
     {
-        if (paymasterConfig.length < 64) {
+        if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
         }
 
         uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(paymasterConfig[cursor:cursor += 6]));
-        address token = address(bytes20(paymasterConfig[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(paymasterConfig[cursor:cursor += 32]));
-        bytes memory signature = paymasterConfig[cursor:];
+        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        address token = address(bytes20(_paymasterConfig[cursor:cursor += 20]));
+        uint256 price = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
+        bytes memory signature = _paymasterConfig[cursor:];
 
         if (token == address(0)) {
             revert NullTokenAddress();
@@ -161,10 +161,10 @@ contract SingletonPaymaster is BasePaymaster {
             revert InvalidPrice();
         }
 
-        bytes memory context = abi.encode(userOp.sender, token, price);
+        bytes memory context = abi.encode(_userOp.sender, token, price);
 
         require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(userOp, validUntil, validAfter, token, price));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, price));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
@@ -191,7 +191,7 @@ contract SingletonPaymaster is BasePaymaster {
         uint256 _price
     ) public view returns (bytes32) {
         address sender = _userOp.getSender();
-        return keccak256(
+        bytes32 userOpHash = keccak256(
             abi.encode(
                 sender,
                 _userOp.nonce,
@@ -199,13 +199,15 @@ contract SingletonPaymaster is BasePaymaster {
                 keccak256(_userOp.callData),
                 _userOp.accountGasLimits,
                 _userOp.preVerificationGas,
-                _userOp.gasFees,
-                block.chainid,
-                address(this),
-                _validUntil,
-                _validAfter,
-                _price,
-                _token
+                _userOp.gasFees
+            )
+        );
+
+        bytes32 paymasterDataHash = getPaymasterDataHash(_userOp.paymasterAndData);
+
+        return keccak256(
+            abi.encode(
+                userOpHash, paymasterDataHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token
             )
         );
     }
@@ -223,5 +225,11 @@ contract SingletonPaymaster is BasePaymaster {
         bytes calldata paymasterConfig = _paymasterAndData[PAYMASTER_DATA_OFFSET + 1:];
 
         return (mode, paymasterConfig);
+    }
+
+    function getPaymasterDataHash(bytes calldata _paymasterAndData) internal pure returns (bytes32) {
+        return keccak256(
+            abi.encode(uint256(bytes32(_paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET])))
+        );
     }
 }
