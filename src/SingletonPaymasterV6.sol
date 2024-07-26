@@ -35,6 +35,28 @@ contract SingletonPaymasterV6 is BasePaymaster {
     error InvalidPrice();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                           EVENTS                           */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /// @dev Emitted when a user operation is sponsored by the paymaster.
+    event UserOperationSponsored(
+        bytes32 indexed userOpHash,
+        address indexed user,
+        bool sponsoredWithErc20,
+        uint256 tokenAmountPaid,
+        uint256 tokenPrice
+    );
+
+    /// @dev Emitted when a new treasury is set.
+    event TreasuryUpdated(address oldTreasury, address newTreasury);
+
+    /// @dev Emitted when a signer is added.
+    event SignerAdded(address signer);
+
+    /// @dev Emitted when a signer is removed.
+    event SignerRemoved(address signer);
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
@@ -61,8 +83,8 @@ contract SingletonPaymasterV6 is BasePaymaster {
     /// @param _entryPoint The ERC-4337 EntryPoint contract.
     /// @param _owner The address that will be set as the owner of the contract.
     constructor(IEntryPoint _entryPoint, address _owner) BasePaymaster(_entryPoint) Ownable(_owner) {
-        treasury = _owner;
-        signers[_owner] = true;
+        setTreasury(_owner);
+        addSigner(_owner);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -71,13 +93,16 @@ contract SingletonPaymasterV6 is BasePaymaster {
 
     function removeSigner(address _signer) public onlyOwner {
         signers[_signer] = false;
+        emit SignerRemoved(_signer);
     }
 
     function addSigner(address _signer) public onlyOwner {
         signers[_signer] = true;
+        emit SignerAdded(_signer);
     }
 
     function setTreasury(address _treasury) public onlyOwner {
+        emit TreasuryUpdated(treasury, _treasury);
         treasury = _treasury;
     }
 
@@ -87,8 +112,13 @@ contract SingletonPaymasterV6 is BasePaymaster {
 
     // @notice Skipped in verifying mode because postOp isn't called when context is empty.
     function _postOp(PostOpMode, bytes calldata context, uint256 actualGasCost) internal override {
-        (address sender, address token, uint256 price, uint256 maxFeePerGas, uint256 maxPriorityFeePerGas) =
-            abi.decode(context, (address, address, uint256, uint256, uint256));
+        uint256 cursor = 0;
+        address sender = address(bytes20(context[cursor:cursor += 20]));
+        address token = address(bytes20(context[cursor:cursor += 20]));
+        uint256 price = uint256(bytes32(context[cursor:cursor += 32]));
+        uint256 maxFeePerGas = uint256(bytes32(context[cursor:cursor += 32]));
+        uint256 maxPriorityFeePerGas = uint256(bytes32(context[cursor:cursor += 32]));
+        bytes32 userOpHash = bytes32(context[cursor:cursor += 32]);
 
         uint256 actualUserOpFeePerGas;
         if (maxFeePerGas == maxPriorityFeePerGas) {
@@ -100,9 +130,11 @@ contract SingletonPaymasterV6 is BasePaymaster {
 
         uint256 costInToken = ((actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * price) / 1e18;
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
+
+        emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
     }
 
-    function _validatePaymasterUserOp(UserOperation calldata _userOp, bytes32, /* userOpHash */ uint256 /* maxCost */ )
+    function _validatePaymasterUserOp(UserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
         internal
         virtual
         override
@@ -111,20 +143,20 @@ contract SingletonPaymasterV6 is BasePaymaster {
         (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(_userOp.paymasterAndData);
 
         if (mode == 0) {
-            return _validateVerifyingMode(_userOp, paymasterConfig);
+            return _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         } else if (mode == 1) {
-            return _validateERC20Mode(_userOp, paymasterConfig);
+            return _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
 
         // only valid modes are 1 and 0
         revert PaymasterDataModeInvalid();
     }
 
-    function _validateVerifyingMode(UserOperation calldata _userOp, bytes calldata _paymasterConfig)
-        internal
-        view
-        returns (bytes memory, uint256)
-    {
+    function _validateVerifyingMode(
+        UserOperation calldata _userOp,
+        bytes calldata _paymasterConfig,
+        bytes32 _userOpHash
+    ) internal returns (bytes memory, uint256) {
         if (_paymasterConfig.length < 12) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -141,10 +173,11 @@ contract SingletonPaymasterV6 is BasePaymaster {
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
+        emit UserOperationSponsored(_userOpHash, _userOp.sender, false, 0, 0);
         return ("", validationData);
     }
 
-    function _validateERC20Mode(UserOperation calldata _userOp, bytes calldata _paymasterConfig)
+    function _validateERC20Mode(UserOperation calldata _userOp, bytes calldata _paymasterConfig, bytes32 _userOpHash)
         internal
         view
         returns (bytes memory, uint256)
@@ -168,8 +201,9 @@ contract SingletonPaymasterV6 is BasePaymaster {
             revert InvalidPrice();
         }
 
-        bytes memory context =
-            abi.encode(_userOp.sender, token, price, _userOp.maxFeePerGas, _userOp.maxPriorityFeePerGas);
+        bytes memory context = abi.encodePacked(
+            _userOp.sender, token, price, _userOp.maxFeePerGas, _userOp.maxPriorityFeePerGas, _userOpHash
+        );
 
         require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, price));
@@ -197,7 +231,7 @@ contract SingletonPaymasterV6 is BasePaymaster {
         uint256 _validAfter,
         address _token,
         uint256 _price
-    ) internal view returns (bytes32) {
+    ) public view returns (bytes32) {
         bytes32 userOpHash = keccak256(
             abi.encode(
                 _userOp.sender,
