@@ -246,7 +246,7 @@ contract SingletonPaymasterV6 is BasePaymaster {
             )
         );
 
-        bytes32 paymasterDataHash = getPaymasterDataHash(_userOp.paymasterAndData);
+        bytes32 paymasterDataHash = _getPaymasterDataHash(_userOp.paymasterAndData);
 
         return keccak256(
             abi.encode(
@@ -270,7 +270,7 @@ contract SingletonPaymasterV6 is BasePaymaster {
         return (mode, paymasterConfig);
     }
 
-    function getPaymasterDataHash(bytes calldata _paymasterAndData) internal pure returns (bytes32) {
+    function _getPaymasterDataHash(bytes calldata _paymasterAndData) internal pure returns (bytes32) {
         return keccak256(
             abi.encode(uint256(bytes32(_paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET])))
         );
