@@ -6,9 +6,10 @@ import {MessageHashUtils} from "openzeppelin-contracts/contracts/utils/cryptogra
 
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {EntryPoint} from "account-abstraction-v7/core/EntryPoint.sol";
+import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {SimpleAccountFactory, SimpleAccount} from "account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
-import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
+import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
@@ -19,7 +20,7 @@ contract SingletonPaymasterTest is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymasterV7 paymaster;
+    SingletonPaymaster paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -38,46 +39,8 @@ contract SingletonPaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymasterV7(entryPoint, paymasterOwner);
+        paymaster = new SingletonPaymaster(address(entryPoint), paymasterOwner);
         paymaster.deposit{value: 100e18}();
-    }
-
-    function testDeploy() external view {
-        assertEq(address(paymaster.entryPoint()), address(entryPoint));
-        assertEq(address(paymaster.owner()), paymasterOwner);
-        assertEq(address(paymaster.treasury()), paymasterOwner);
-    }
-
-    function testOwnershipTransfer() external {
-        vm.startPrank(paymasterOwner);
-        assertEq(paymaster.owner(), paymasterOwner);
-        paymaster.transferOwnership(beneficiary);
-        assertEq(paymaster.owner(), beneficiary);
-        vm.stopPrank();
-    }
-
-    function testUpdateTreasury() external {
-        vm.startPrank(paymasterOwner);
-        assertEq(paymaster.treasury(), paymasterOwner);
-        paymaster.setTreasury(beneficiary);
-        assertEq(paymaster.treasury(), beneficiary);
-        vm.stopPrank();
-    }
-
-    function testAddSigner() external {
-        vm.startPrank(paymasterOwner);
-        assertFalse(paymaster.signers(beneficiary));
-        paymaster.addSigner(beneficiary);
-        assertTrue(paymaster.signers(beneficiary));
-        vm.stopPrank();
-    }
-
-    function testRemoveSigner() external {
-        vm.startPrank(paymasterOwner);
-        assertTrue(paymaster.signers(paymasterOwner));
-        paymaster.removeSigner(paymasterOwner);
-        assertFalse(paymaster.signers(paymasterOwner));
-        vm.stopPrank();
     }
 
     function testERC20PaymasterSuccess() external {
@@ -99,12 +62,45 @@ contract SingletonPaymasterTest is Test {
         submitUserOp(op);
     }
 
+    function testVerifyingPaymasterFailedSignatureLengthInvalid() external {
+        PackedUserOperation memory op =
+            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        op.paymasterAndData = abi.encodePacked(getSignedPaymasterData(op), hex"696969");
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEntryPoint.FailedOpWithRevert.selector,
+                uint256(0),
+                "AA33 reverted",
+                abi.encodeWithSelector(SingletonPaymaster.SignatureLengthInvalid.selector)
+            )
+        );
+        submitUserOp(op);
+    }
+
+    function testVerifyingPaymasterFailedPaymasterConfigLengthInvalid() external {
+        vm.deal(address(account), 1e18);
+        PackedUserOperation memory op =
+            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000));
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEntryPoint.FailedOpWithRevert.selector,
+                uint256(0),
+                "AA33 reverted",
+                abi.encodeWithSelector(SingletonPaymaster.SignatureLengthInvalid.selector)
+            )
+        );
+        submitUserOp(op);
+    }
+
     // HELPERS //
 
     function getSignedPaymasterData(PackedUserOperation memory _userOp) private view returns (bytes memory) {
         uint48 validUntil = 0;
         uint48 validAfter = 0;
-        bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0);
+        bytes32 hash = paymaster.getHashV7(_userOp, validUntil, validAfter, address(0), 0);
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);
@@ -119,7 +115,7 @@ contract SingletonPaymasterTest is Test {
         uint48 validAfter = 0;
         uint256 price = 1;
         address erc20 = address(token);
-        bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price);
+        bytes32 hash = paymaster.getHashV7(_userOp, validUntil, validAfter, erc20, price);
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
         bytes memory signature = abi.encodePacked(r, s, v);

@@ -1,14 +1,15 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {BasePaymaster} from "./base/BasePaymaster.sol";
+import {Test, console} from "forge-std/Test.sol";
 
-import {IPaymaster as IPaymasterV6} from "account-abstraction-v6/interfaces/IPaymaster.sol";
+import {BaseSingletonPaymaster} from "./base/BaseSingletonPaymaster.sol";
+import {PostOpMode} from "./interfaces/PostOpMode.sol";
+
 import {UserOperation} from "account-abstraction-v6/interfaces/IPaymaster.sol";
+import {_packValidationData} from "account-abstraction-v6/core/Helpers.sol";
 
-import {IPaymaster as IPaymasterV7} from "account-abstraction-v7/interfaces/IPaymaster.sol";
 import {UserOperationLib} from "account-abstraction-v7/core/UserOperationLib.sol";
-import {_packValidationData} from "account-abstraction-v7/core/Helpers.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import {ECDSA} from "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
@@ -19,7 +20,7 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 using UserOperationLib for PackedUserOperation;
 
-contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
+contract SingletonPaymaster is BaseSingletonPaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -30,11 +31,14 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
     /// @dev The paymaster data length is invalid for the selected mode.
     error PaymasterConfigLengthInvalid();
 
-    /// @dev The paymaster was called with a invalid token.
-    error NullTokenAddress();
+    /// @dev The token is invalid.
+    error TokenAddressInvalid();
 
-    /// @dev The paymaster was called with a invalid price.
-    error InvalidPrice();
+    /// @dev The token price is invalid.
+    error PriceInvalid();
+
+    /// @dev The signature length is invalid.
+    error SignatureLengthInvalid();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -82,9 +86,9 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
     /// @notice Initializes the SingletonPaymaster contract with the given parameters.
     /// @param _entryPoint The ERC-4337 EntryPoint contract.
     /// @param _owner The address that will be set as the owner of the contract.
-    constructor(address _entryPoint, address _owner) BasePaymaster(_entryPoint, _owner) {
-        setTreasury(_owner);
-        addSigner(_owner);
+    constructor(address _entryPoint, address _owner) BaseSingletonPaymaster(_entryPoint, _owner) {
+        treasury = _owner;
+        signers[_owner] = true;
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -110,49 +114,23 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @inheritdoc IPaymasterV7
-    function validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
-        external
-        override
-        returns (bytes memory context, uint256 validationData)
-    {
-        _requireFromEntryPoint();
-        return _validatePaymasterUserOp(userOp, userOpHash, maxCost);
-    }
-
-    /// @inheritdoc IPaymasterV7
-    function postOp(
-        IPaymasterV7.PostOpMode mode,
-        bytes calldata context,
-        uint256 actualGasCost,
-        uint256 actualUserOpFeePerGas
-    ) external override {
-        _requireFromEntryPoint();
-        _postOp(mode, context, actualGasCost, actualUserOpFeePerGas);
-    }
-
     // @notice Skipped in verifying mode because postOp isn't called when context is empty.
-    function _postOp(
-        IPaymasterV7.PostOpMode PostOpMode,
-        bytes calldata _context,
-        uint256 _actualGasCost,
-        uint256 _actualUserOpFeePerGas
-    ) internal {
-        uint256 cursor = 0;
-        address sender = address(bytes20(_context[cursor:cursor += 20]));
-        address token = address(bytes20(_context[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(_context[cursor:cursor += 32]));
-        bytes32 userOpHash = bytes32(_context[cursor:cursor += 32]);
-
+    function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost, uint256 _actualUserOpFeePerGas)
+        internal
+        override
+    {
+        (address sender, address token, uint256 price, bytes32 userOpHash,,) = _parseContext(_context);
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * price) / 1e18;
 
-        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-        emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+        if (_mode != PostOpMode.postOpReverted) {
+            SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
+            emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+        }
     }
 
     function _validatePaymasterUserOp(PackedUserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
         internal
-        virtual
+        override
         returns (bytes memory, uint256)
     {
         (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(_userOp.paymasterAndData);
@@ -172,16 +150,8 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
     ) internal returns (bytes memory, uint256) {
-        if (_paymasterConfig.length < 12) {
-            revert PaymasterConfigLengthInvalid();
-        }
+        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
 
-        uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        bytes memory signature = _paymasterConfig[cursor:];
-
-        require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
         bytes32 hash =
             MessageHashUtils.toEthSignedMessageHash(getHashV7(_userOp, validUntil, validAfter, address(0), 0));
         address verifyingSigner = ECDSA.recover(hash, signature);
@@ -198,28 +168,11 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
     ) internal view returns (bytes memory, uint256) {
-        if (_paymasterConfig.length < 64) {
-            revert PaymasterConfigLengthInvalid();
-        }
-
-        uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        address token = address(bytes20(_paymasterConfig[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
-        bytes memory signature = _paymasterConfig[cursor:];
-
-        if (token == address(0)) {
-            revert NullTokenAddress();
-        }
-
-        if (price == 0) {
-            revert InvalidPrice();
-        }
+        (uint48 validUntil, uint48 validAfter, address token, uint256 price, bytes calldata signature) =
+            _parseErc20Config(_paymasterConfig);
 
         bytes memory context = abi.encodePacked(_userOp.sender, token, price, _userOpHash);
 
-        require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHashV7(_userOp, validUntil, validAfter, token, price));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
@@ -233,31 +186,16 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
     /*        ENTRYPOINT V0.6 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @inheritdoc IPaymasterV6
-    function validatePaymasterUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
-        external
-        override
-        returns (bytes memory context, uint256 validationData)
-    {
-        _requireFromEntryPoint();
-        return _validatePaymasterUserOp(userOp, userOpHash, maxCost);
-    }
-
-    /// @inheritdoc IPaymasterV6
-    function postOp(IPaymasterV6.PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost) external override {
-        _requireFromEntryPoint();
-        _postOp(_mode, _context, _actualGasCost);
-    }
-
     // @notice Skipped in verifying mode because postOp isn't called when context is empty.
-    function _postOp(IPaymasterV6.PostOpMode, bytes calldata _context, uint256 _actualGasCost) internal {
-        uint256 cursor = 0;
-        address sender = address(bytes20(_context[cursor:cursor += 20]));
-        address token = address(bytes20(_context[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(_context[cursor:cursor += 32]));
-        uint256 maxFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
-        uint256 maxPriorityFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
-        bytes32 userOpHash = bytes32(_context[cursor:cursor += 32]);
+    function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost) internal override {
+        (
+            address sender,
+            address token,
+            uint256 price,
+            bytes32 userOpHash,
+            uint256 maxFeePerGas,
+            uint256 maxPriorityFeePerGas
+        ) = _parseContext(_context);
 
         uint256 actualUserOpFeePerGas;
         if (maxFeePerGas == maxPriorityFeePerGas) {
@@ -268,14 +206,16 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
         }
 
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * price) / 1e18;
-        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
 
-        emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+        if (_mode != PostOpMode.postOpReverted) {
+            SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
+            emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+        }
     }
 
     function _validatePaymasterUserOp(UserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
         internal
-        virtual
+        override
         returns (bytes memory, uint256)
     {
         (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(_userOp.paymasterAndData);
@@ -295,16 +235,7 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
     ) internal returns (bytes memory, uint256) {
-        if (_paymasterConfig.length < 12) {
-            revert PaymasterConfigLengthInvalid();
-        }
-
-        uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        bytes memory signature = _paymasterConfig[cursor:];
-
-        require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
+        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
         bytes32 hash =
             MessageHashUtils.toEthSignedMessageHash(getHashV6(_userOp, validUntil, validAfter, address(0), 0));
         address verifyingSigner = ECDSA.recover(hash, signature);
@@ -321,30 +252,11 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
         view
         returns (bytes memory, uint256)
     {
-        if (_paymasterConfig.length < 64) {
-            revert PaymasterConfigLengthInvalid();
-        }
+        (uint48 validUntil, uint48 validAfter, address token, uint256 price, bytes calldata signature) =
+            _parseErc20Config(_paymasterConfig);
 
-        uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        address token = address(bytes20(_paymasterConfig[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
-        bytes memory signature = _paymasterConfig[cursor:];
+        bytes memory context = _createContext(_userOp, token, price, _userOpHash);
 
-        if (token == address(0)) {
-            revert NullTokenAddress();
-        }
-
-        if (price == 0) {
-            revert InvalidPrice();
-        }
-
-        bytes memory context = abi.encodePacked(
-            _userOp.sender, token, price, _userOp.maxFeePerGas, _userOp.maxPriorityFeePerGas, _userOpHash
-        );
-
-        require(signature.length == 64 || signature.length == 65, "VerifyingPaymaster: invalid signature length");
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHashV6(_userOp, validUntil, validAfter, token, price));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
@@ -353,10 +265,6 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
 
         return (context, validationData);
     }
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER FUNCTIONS        */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      PUBLIC HELPERS                        */
@@ -389,13 +297,7 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
             )
         );
 
-        bytes32 paymasterDataHash = _getPaymasterDataHash(_userOp.paymasterAndData);
-
-        return keccak256(
-            abi.encode(
-                userOpHash, paymasterDataHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token
-            )
-        );
+        return keccak256(abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token));
     }
 
     /// @notice Hashes the user operation data.
@@ -424,13 +326,7 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
             )
         );
 
-        bytes32 paymasterDataHash = _getPaymasterDataHash(_userOp.paymasterAndData);
-
-        return keccak256(
-            abi.encode(
-                userOpHash, paymasterDataHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token
-            )
-        );
+        return keccak256(abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token));
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -442,15 +338,91 @@ contract SingletonPaymaster is IPaymasterV6, IPaymasterV7, BasePaymaster {
     /// @return mode The paymaster mode.
     /// @return paymasterConfig The paymaster configuration data.
     function _parsePaymasterAndData(bytes calldata _paymasterAndData) internal pure returns (uint8, bytes calldata) {
+        if (_paymasterAndData.length < PAYMASTER_CONFIG_OFFSET) {
+            return (0, msg.data[0:0]);
+        }
+
         uint8 mode = uint8(bytes1(_paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 1]));
         bytes calldata paymasterConfig = _paymasterAndData[PAYMASTER_DATA_OFFSET + 1:];
 
         return (mode, paymasterConfig);
     }
 
-    function _getPaymasterDataHash(bytes calldata _paymasterAndData) internal pure returns (bytes32) {
-        return keccak256(
-            abi.encode(uint256(bytes32(_paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET])))
-        );
+    function _parseErc20Config(bytes calldata _paymasterConfig)
+        private
+        pure
+        returns (uint48, uint48, address, uint256, bytes calldata)
+    {
+        if (_paymasterConfig.length < 64) {
+            revert PaymasterConfigLengthInvalid();
+        }
+
+        uint256 cursor = 0;
+        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        address token = address(bytes20(_paymasterConfig[cursor:cursor += 20]));
+        uint256 price = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
+        bytes calldata signature = _paymasterConfig[cursor:];
+
+        if (token == address(0)) {
+            revert TokenAddressInvalid();
+        }
+
+        if (price == 0) {
+            revert PriceInvalid();
+        }
+
+        if (signature.length != 64 && signature.length != 65) {
+            revert SignatureLengthInvalid();
+        }
+
+        return (validUntil, validAfter, token, price, signature);
+    }
+
+    function _parseVerifyingConfig(bytes calldata _paymasterConfig)
+        private
+        pure
+        returns (uint48, uint48, bytes calldata)
+    {
+        if (_paymasterConfig.length < 12) {
+            revert PaymasterConfigLengthInvalid();
+        }
+
+        uint256 cursor = 0;
+        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
+        bytes calldata signature = _paymasterConfig[cursor:];
+
+        if (signature.length != 64 && signature.length != 65) {
+            revert SignatureLengthInvalid();
+        }
+
+        return (validUntil, validAfter, signature);
+    }
+
+    function _parseContext(bytes calldata _context)
+        private
+        pure
+        returns (address, address, uint256, bytes32, uint256, uint256)
+    {
+        uint256 cursor = 0;
+        address sender = address(bytes20(_context[cursor:cursor += 20]));
+        address token = address(bytes20(_context[cursor:cursor += 20]));
+        uint256 price = uint256(bytes32(_context[cursor:cursor += 32]));
+        bytes32 userOpHash = bytes32(_context[cursor:cursor += 32]);
+        uint256 maxFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
+        uint256 maxPriorityFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
+
+        return (sender, token, price, userOpHash, maxFeePerGas, maxPriorityFeePerGas);
+    }
+
+    // @dev Helper to bypass stack too deep issue.
+    function _createContext(UserOperation calldata userOp, address token, uint256 price, bytes32 userOpHash)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return
+            abi.encodePacked(userOp.sender, token, price, userOpHash, userOp.maxFeePerGas, userOp.maxPriorityFeePerGas);
     }
 }
