@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {BaseSingletonPaymaster} from "./BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster} from "../base/BaseSingletonPaymaster.sol";
 import {PostOpMode} from "../interfaces/PostOpMode.sol";
 import {IPaymasterV7} from "../interfaces/IPaymasterV7.sol";
 
-import {UserOperationLib} from "account-abstraction-v7/core/UserOperationLib.sol";
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {_packValidationData} from "account-abstraction-v7/core/Helpers.sol";
+import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
+import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
 
-import {ECDSA} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "openzeppelin-contracts-v5.0.0/contracts/utils/math/Math.sol";
+import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 

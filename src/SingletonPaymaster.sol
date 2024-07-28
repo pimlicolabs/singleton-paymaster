@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {SingletonPaymasterV6} from "./base/SingletonPaymasterV6.sol";
-import {SingletonPaymasterV7} from "./base/SingletonPaymasterV7.sol";
+import {SingletonPaymasterV6} from "./implementations/SingletonPaymasterV6.sol";
+import {SingletonPaymasterV7} from "./implementations/SingletonPaymasterV7.sol";
 import {BaseSingletonPaymaster} from "./base/BaseSingletonPaymaster.sol";
 
 contract SingletonPaymaster is BaseSingletonPaymaster, SingletonPaymasterV6, SingletonPaymasterV7 {

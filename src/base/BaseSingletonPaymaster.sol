@@ -6,8 +6,8 @@ import {BasePaymaster} from "./BasePaymaster.sol";
 import {IPaymasterV6} from "../interfaces/IPaymasterV6.sol";
 import {PostOpMode} from "../interfaces/PostOpMode.sol";
 
-import {UserOperation} from "account-abstraction-v6/interfaces/IPaymaster.sol";
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
+import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 // TODO: delete this import
 import {Test, console} from "forge-std/Test.sol";

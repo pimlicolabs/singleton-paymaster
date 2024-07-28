@@ -2,8 +2,9 @@
 pragma solidity ^0.8.12;
 
 import {
-    UserOperationLib as UserOperationLibV06, UserOperation
-} from "account-abstraction-v6/interfaces/UserOperation.sol";
+    UserOperationLib as UserOperationLibV06,
+    UserOperation
+} from "@account-abstraction-v6/interfaces/UserOperation.sol";
 import {PostOpMode} from "./PostOpMode.sol";
 
 /**

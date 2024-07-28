@@ -3,16 +3,16 @@ pragma solidity ^0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 
-import {BaseSingletonPaymaster} from "./BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster} from "../base/BaseSingletonPaymaster.sol";
 import {PostOpMode} from "../interfaces/PostOpMode.sol";
 import {IPaymasterV6} from "../interfaces/IPaymasterV6.sol";
 
-import {UserOperation} from "account-abstraction-v6/interfaces/IPaymaster.sol";
-import {_packValidationData} from "account-abstraction-v6/core/Helpers.sol";
+import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
+import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
 
-import {ECDSA} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "openzeppelin-contracts-v5.0.0/contracts/utils/math/Math.sol";
+import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
