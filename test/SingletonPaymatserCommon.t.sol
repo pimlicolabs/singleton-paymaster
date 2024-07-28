@@ -3,12 +3,12 @@ pragma solidity ^0.8.26;
 
 import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
-
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {EntryPoint} from "account-abstraction-v7/core/EntryPoint.sol";
-import {SimpleAccountFactory, SimpleAccount} from "account-abstraction-v7/samples/SimpleAccountFactory.sol";
 
+import {EntryPoint} from "../src/account-abstraction/v07/core/EntryPoint.sol";
+import {SimpleAccountFactory, SimpleAccount} from "../src/account-abstraction/v07/samples/SimpleAccountFactory.sol";
 import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
+
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
