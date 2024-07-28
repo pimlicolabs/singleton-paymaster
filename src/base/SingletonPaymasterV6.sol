@@ -78,7 +78,7 @@ abstract contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         }
 
         // only valid modes are 1 and 0
-        revert PaymasterDataModeInvalid();
+        revert PaymasterModeInvalid();
     }
 
     function _validateVerifyingMode(

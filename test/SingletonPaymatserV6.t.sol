@@ -4,10 +4,10 @@ pragma solidity ^0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {EntryPoint} from "account-abstraction-v7/core/EntryPoint.sol";
-import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {SimpleAccountFactory, SimpleAccount} from "account-abstraction-v7/samples/SimpleAccountFactory.sol";
+import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
+import {EntryPoint} from "account-abstraction-v6/core/EntryPoint.sol";
+import {IEntryPoint} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
+import {SimpleAccountFactory, SimpleAccount} from "account-abstraction-v6/samples/SimpleAccountFactory.sol";
 
 import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
 import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
@@ -52,7 +52,7 @@ contract SingletonPaymasterTest is Test {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
 
-        PackedUserOperation memory op =
+        UserOperation memory op =
             fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
 
         op.paymasterAndData = getSignedPaymasterData(mode, op);
@@ -64,10 +64,10 @@ contract SingletonPaymasterTest is Test {
         vm.assume(_invalidMode != 0 && _invalidMode != 1);
         setupERC20();
 
-        PackedUserOperation memory op =
+        UserOperation memory op =
             fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode);
+        op.paymasterAndData = abi.encode(address(paymaster), uint128(100000), uint128(50000), _invalidMode);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -92,10 +92,10 @@ contract SingletonPaymasterTest is Test {
             vm.assume(_randomBytes.length < 64);
         }
 
-        PackedUserOperation memory op =
+        UserOperation memory op =
             fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), mode, _randomBytes);
+        op.paymasterAndData = abi.encode(address(paymaster), uint128(100000), uint128(50000), mode, _randomBytes);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -112,11 +112,11 @@ contract SingletonPaymasterTest is Test {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
 
-        PackedUserOperation memory op =
+        UserOperation memory op =
             fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
 
         if (mode == VERIFYING_MODE) {
-            op.paymasterAndData = abi.encodePacked(
+            op.paymasterAndData = abi.encode(
                 address(paymaster),
                 uint128(100000),
                 uint128(50000),
@@ -127,7 +127,7 @@ contract SingletonPaymasterTest is Test {
             );
         }
         if (mode == ERC20_MODE) {
-            op.paymasterAndData = abi.encodePacked(
+            op.paymasterAndData = abi.encode(
                 address(paymaster),
                 uint128(100000),
                 uint128(50000),
@@ -155,10 +155,10 @@ contract SingletonPaymasterTest is Test {
     function testFailedTokenAddressInvalid() external {
         setupERC20();
 
-        PackedUserOperation memory op =
+        UserOperation memory op =
             fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
 
-        op.paymasterAndData = abi.encodePacked(
+        op.paymasterAndData = abi.encode(
             address(paymaster),
             uint128(100000),
             uint128(50000),
@@ -185,10 +185,10 @@ contract SingletonPaymasterTest is Test {
     function testFailedPriceInvalid() external {
         setupERC20();
 
-        PackedUserOperation memory op =
+        UserOperation memory op =
             fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
 
-        op.paymasterAndData = abi.encodePacked(
+        op.paymasterAndData = abi.encode(
             address(paymaster),
             uint128(100000),
             uint128(50000),
@@ -213,7 +213,7 @@ contract SingletonPaymasterTest is Test {
     }
 
     //function testVerifyingPaymasterSuccess() external {
-    //    PackedUserOperation memory op =
+    //    UserOperation memory op =
     //        fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
     //    op.paymasterAndData = getSignedPaymasterData(op);
     //    op.signature = signUserOp(op, userKey);
@@ -221,9 +221,9 @@ contract SingletonPaymasterTest is Test {
     //}
 
     //function testVerifyingPaymasterFailedSignatureLengthInvalid() external {
-    //    PackedUserOperation memory op =
+    //    UserOperation memory op =
     //        fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
-    //    op.paymasterAndData = abi.encodePacked(getSignedPaymasterData(op), hex"696969");
+    //    op.paymasterAndData = abi.encode(getSignedPaymasterData(op), hex"696969");
     //    op.signature = signUserOp(op, userKey);
     //    vm.expectRevert(
     //        abi.encodeWithSelector(
@@ -238,9 +238,9 @@ contract SingletonPaymasterTest is Test {
 
     //function testVerifyingPaymasterFailedPaymasterConfigLengthInvalid() external {
     //    vm.deal(address(account), 1e18);
-    //    PackedUserOperation memory op =
+    //    UserOperation memory op =
     //        fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
-    //    op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000));
+    //    op.paymasterAndData = abi.encode(address(paymaster), uint128(100000), uint128(50000));
     //    op.signature = signUserOp(op, userKey);
     //    vm.expectRevert(
     //        abi.encodeWithSelector(
@@ -255,11 +255,7 @@ contract SingletonPaymasterTest is Test {
 
     // HELPERS //
 
-    function getSignedPaymasterData(uint8 _mode, PackedUserOperation memory _userOp)
-        private
-        view
-        returns (bytes memory)
-    {
+    function getSignedPaymasterData(uint8 _mode, UserOperation memory _userOp) private view returns (bytes memory) {
         if (_mode == VERIFYING_MODE) {
             /* VERIFYING MODE */
             uint48 validUntil = 0;
@@ -267,9 +263,9 @@ contract SingletonPaymasterTest is Test {
             bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
-            bytes memory signature = abi.encodePacked(r, s, v);
+            bytes memory signature = abi.encode(r, s, v);
 
-            return abi.encodePacked(
+            return abi.encode(
                 address(paymaster), uint128(100000), uint128(50000), uint8(0), validUntil, validAfter, signature
             );
         }
@@ -282,9 +278,9 @@ contract SingletonPaymasterTest is Test {
             bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
-            bytes memory signature = abi.encodePacked(r, s, v);
+            bytes memory signature = abi.encode(r, s, v);
 
-            return abi.encodePacked(
+            return abi.encode(
                 address(paymaster),
                 uint128(100000),
                 uint128(50000),
@@ -303,26 +299,26 @@ contract SingletonPaymasterTest is Test {
     function fillUserOp(SimpleAccount _sender, uint256 _key, address _to, uint256 _value, bytes memory _data)
         private
         view
-        returns (PackedUserOperation memory op)
+        returns (UserOperation memory op)
     {
         op.sender = address(_sender);
         op.nonce = entryPoint.getNonce(address(_sender), 0);
         op.callData = abi.encodeWithSelector(SimpleAccount.execute.selector, _to, _value, _data);
-        op.accountGasLimits = bytes32(abi.encodePacked(bytes16(uint128(80000)), bytes16(uint128(50000))));
+        op.accountGasLimits = bytes32(abi.encode(bytes16(uint128(80000)), bytes16(uint128(50000))));
         op.preVerificationGas = 50000;
-        op.gasFees = bytes32(abi.encodePacked(bytes16(uint128(100)), bytes16(uint128(1000000000))));
+        op.gasFees = bytes32(abi.encode(bytes16(uint128(100)), bytes16(uint128(1000000000))));
         op.signature = signUserOp(op, _key);
         return op;
     }
 
-    function signUserOp(PackedUserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
+    function signUserOp(UserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
         bytes32 hash = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
-        signature = abi.encodePacked(r, s, v);
+        signature = abi.encode(r, s, v);
     }
 
-    function submitUserOp(PackedUserOperation memory op) public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+    function submitUserOp(UserOperation memory op) public {
+        UserOperation[] memory ops = new UserOperation[](1);
         ops[0] = op;
         entryPoint.handleOps(ops, beneficiary);
     }

@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test, console} from "forge-std/Test.sol";
-
 import {BaseSingletonPaymaster} from "./BaseSingletonPaymaster.sol";
 import {PostOpMode} from "../interfaces/PostOpMode.sol";
 import {IPaymasterV7} from "../interfaces/IPaymasterV7.sol";
@@ -18,9 +16,6 @@ import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 using UserOperationLib for PackedUserOperation;
-
-// TODO: delete this import
-import {Test, console} from "forge-std/Test.sol";
 
 abstract contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     constructor() {}
@@ -64,7 +59,6 @@ abstract contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         internal
         returns (bytes memory, uint256)
     {
-        console.log("_validatePaymasterUserOp");
         (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(_userOp.paymasterAndData);
 
         if (mode == 0) {
@@ -74,7 +68,7 @@ abstract contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         }
 
         // only valid modes are 1 and 0
-        revert PaymasterDataModeInvalid();
+        revert PaymasterModeInvalid();
     }
 
     function _validateVerifyingMode(

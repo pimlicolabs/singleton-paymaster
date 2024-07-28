@@ -18,19 +18,19 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev The paymaster data mode is invalid. The mode should be 0 and 1.
-    error PaymasterDataModeInvalid();
+    error PaymasterModeInvalid();
 
     /// @dev The paymaster data length is invalid for the selected mode.
     error PaymasterConfigLengthInvalid();
+
+    /// @dev The paymaster signature length is invalid.
+    error PaymasterSignatureLengthInvalid();
 
     /// @dev The token is invalid.
     error TokenAddressInvalid();
 
     /// @dev The token price is invalid.
     error PriceInvalid();
-
-    /// @dev The signature length is invalid.
-    error SignatureLengthInvalid();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -147,7 +147,7 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
         }
 
         if (signature.length != 64 && signature.length != 65) {
-            revert SignatureLengthInvalid();
+            revert PaymasterSignatureLengthInvalid();
         }
 
         return (validUntil, validAfter, token, price, signature);
@@ -171,7 +171,7 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
         bytes calldata signature = _paymasterConfig[cursor:];
 
         if (signature.length != 64 && signature.length != 65) {
-            revert SignatureLengthInvalid();
+            revert PaymasterSignatureLengthInvalid();
         }
 
         return (validUntil, validAfter, signature);
