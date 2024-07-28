@@ -1,11 +1,10 @@
 ds-test/=lib/openzeppelin-contracts-v5.0.0/lib/forge-std/lib/ds-test/src/
 erc4626-tests/=lib/openzeppelin-contracts-v5.0.0/lib/erc4626-tests/
 forge-std/=lib/forge-std/src/
-halmos-cheatcodes/=lib/openzeppelin-contracts-v5.0.0/lib/halmos-cheatcodes/src/
 solady/=lib/solady/src/
 
-@openzeppelin-v5.0.0/=lib/openzeppelin-contracts-v5.0.0/
-@openzeppelin-v4.8.0/=lib/openzeppelin-contracts-v4.8.0/contracts/
+@openzeppelin-contracts-v4.8.0/=lib/openzeppelin-contracts-v4.8.0/
+@openzeppelin-contracts-v5.0.0/=lib/openzeppelin-contracts-v5.0.0/
 
-account-abstraction-v6/=lib/account-abstraction-v6/contracts/
-account-abstraction-v7/=lib/account-abstraction-v7/contracts/
+@account-abstraction-v6/=lib/account-abstraction-v6/contracts/
+@account-abstraction-v7/=lib/account-abstraction-v7/contracts/
