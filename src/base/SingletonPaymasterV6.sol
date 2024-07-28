@@ -10,9 +10,9 @@ import {IPaymasterV6} from "../interfaces/IPaymasterV6.sol";
 import {UserOperation} from "account-abstraction-v6/interfaces/IPaymaster.sol";
 import {_packValidationData} from "account-abstraction-v6/core/Helpers.sol";
 
-import {ECDSA} from "openzeppelin-contracts/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "openzeppelin-contracts/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "openzeppelin-contracts/contracts/utils/math/Math.sol";
+import {ECDSA} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Math} from "openzeppelin-contracts-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
