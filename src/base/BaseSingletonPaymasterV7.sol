@@ -50,11 +50,11 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
         uint256 _actualGasCost,
         uint256 _actualUserOpFeePerGas
     ) internal {
-        (address sender, address token, uint256 price, bytes32 userOpHash,,) = _parseContext(_context);
-        uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * price) / 1e18;
+        (address sender, address token, uint256 tokenPrice, bytes32 userOpHash,,) = _parseContext(_context);
+        uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * tokenPrice) / 1e18;
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-        emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+        emit UserOperationSponsored(userOpHash, sender, true, costInToken, tokenPrice);
     }
 
     function _validatePaymasterUserOp(PackedUserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
@@ -95,12 +95,13 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
     ) internal view returns (bytes memory, uint256) {
-        (uint48 validUntil, uint48 validAfter, address token, uint256 price, bytes calldata signature) =
+        (uint48 validUntil, uint48 validAfter, address token, uint256 tokenPrice, bytes calldata signature) =
             _parseErc20Config(_paymasterConfig);
 
-        bytes memory context = abi.encodePacked(_userOp.sender, token, price, _userOpHash);
+        bytes memory context = abi.encodePacked(_userOp.sender, token, tokenPrice, _userOpHash);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, price));
+        bytes32 hash =
+            MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, tokenPrice));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
@@ -114,17 +115,17 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Hashes the user operation data.
-    /// @dev In verifying mode, _token and _price are 0.
+    /// @dev In verifying mode, _token and _tokenPrice are 0.
     /// @param _userOp The user operation data.
     /// @param _validUntil The timestamp until which the user operation is valid.
     /// @param _validAfter The timestamp after which the user operation is valid.
-    /// @param _price The maximum amount of tokens allowed for the user operation. 0 if no limit.
+    /// @param _tokenPrice The maximum amount of tokens allowed for the user operation. 0 if no limit.
     function getHash(
         PackedUserOperation calldata _userOp,
         uint48 _validUntil,
         uint48 _validAfter,
         address _token,
-        uint256 _price
+        uint256 _tokenPrice
     ) public view returns (bytes32) {
         address sender = _userOp.getSender();
         bytes32 userOpHash = keccak256(
@@ -139,6 +140,8 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
             )
         );
 
-        return keccak256(abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token));
+        return keccak256(
+            abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _tokenPrice, _token)
+        );
     }
 }

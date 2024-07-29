@@ -42,7 +42,7 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         (
             address sender,
             address token,
-            uint256 price,
+            uint256 tokenPrice,
             bytes32 userOpHash,
             uint256 maxFeePerGas,
             uint256 maxPriorityFeePerGas
@@ -56,11 +56,11 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
             actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
         }
 
-        uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * price) / 1e18;
+        uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * tokenPrice) / 1e18;
 
         if (_mode != PostOpMode.postOpReverted) {
             try this.attemptTransfer(token, sender, treasury, costInToken) {
-                emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+                emit UserOperationSponsored(userOpHash, sender, true, costInToken, tokenPrice);
             } catch (bytes memory revertReason) {
                 revert PostOpTransferFromFailed(revertReason);
             }
@@ -106,12 +106,13 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         view
         returns (bytes memory, uint256)
     {
-        (uint48 validUntil, uint48 validAfter, address token, uint256 price, bytes calldata signature) =
+        (uint48 validUntil, uint48 validAfter, address token, uint256 tokenPrice, bytes calldata signature) =
             _parseErc20Config(_paymasterConfig);
 
-        bytes memory context = _createContext(_userOp, token, price, _userOpHash);
+        bytes memory context = _createContext(_userOp, token, tokenPrice, _userOpHash);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, price));
+        bytes32 hash =
+            MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, tokenPrice));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
@@ -125,17 +126,17 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Hashes the user operation data.
-    /// @dev In verifying mode, _token and _price are 0.
+    /// @dev In verifying mode, _token and _tokenPrice are 0.
     /// @param _userOp The user operation data.
     /// @param _validUntil The timestamp until which the user operation is valid.
     /// @param _validAfter The timestamp after which the user operation is valid.
-    /// @param _price The maximum amount of tokens allowed for the user operation. 0 if no limit.
+    /// @param _tokenPrice The maximum amount of tokens allowed for the user operation. 0 if no limit.
     function getHash(
         UserOperation calldata _userOp,
         uint256 _validUntil,
         uint256 _validAfter,
         address _token,
-        uint256 _price
+        uint256 _tokenPrice
     ) public view returns (bytes32) {
         bytes32 userOpHash = keccak256(
             abi.encode(
@@ -151,7 +152,9 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
             )
         );
 
-        return keccak256(abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token));
+        return keccak256(
+            abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _tokenPrice, _token)
+        );
     }
 
     function attemptTransfer(address token, address origin, address beneficiary, uint256 amount) external {
