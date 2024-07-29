@@ -4,18 +4,19 @@ pragma solidity ^0.8.26;
 import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {EntryPoint} from "../src/account-abstraction/v07/core/EntryPoint.sol";
-import {SimpleAccountFactory, SimpleAccount} from "../src/account-abstraction/v07/samples/SimpleAccountFactory.sol";
-
-import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
+import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
+import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
+
+import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
+import {EntryPoint} from "./utils/account-abstraction/v07/core/EntryPoint.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
-contract SingletonPaymasterTest is Test {
+contract SingletonPaymasterV7Test is Test {
     // helpers
     uint8 immutable VERIFYING_MODE = 0;
     uint8 immutable ERC20_MODE = 1;
@@ -26,7 +27,7 @@ contract SingletonPaymasterTest is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymaster paymaster;
+    SingletonPaymasterV7 paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -45,7 +46,7 @@ contract SingletonPaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymaster(address(entryPoint), paymasterOwner);
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
         paymaster.deposit{value: 100e18}();
     }
 
@@ -53,35 +54,33 @@ contract SingletonPaymasterTest is Test {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
 
-        PackedUserOperation memory op =
-            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        PackedUserOperation memory op = fillUserOp();
 
         op.paymasterAndData = getSignedPaymasterData(mode, op);
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
     }
 
-    function testFailedPaymasterModeInvalid(uint8 _invalidMode) external {
+    function test_RevertWhen_PaymasterModeInvalid(uint8 _invalidMode) external {
         vm.assume(_invalidMode != 0 && _invalidMode != 1);
         setupERC20();
 
-        PackedUserOperation memory op =
-            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        PackedUserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEntryPoint.FailedOpWithRevert.selector,
-                0,
-                "AA33 reverted",
-                BaseSingletonPaymaster.PaymasterModeInvalid.selector
+                uint256(0),
+                string("AA33 reverted"),
+                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterModeInvalid.selector)
             )
         );
         submitUserOp(op);
     }
 
-    function testFailedPaymasterConfigLengthInvalid(uint8 _mode, bytes calldata _randomBytes) external {
+    function test_RevertWhen_PaymasterConfigLengthInvalid(uint8 _mode, bytes calldata _randomBytes) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
 
@@ -93,8 +92,7 @@ contract SingletonPaymasterTest is Test {
             vm.assume(_randomBytes.length < 64);
         }
 
-        PackedUserOperation memory op =
-            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        PackedUserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), mode, _randomBytes);
         op.signature = signUserOp(op, userKey);
@@ -102,19 +100,18 @@ contract SingletonPaymasterTest is Test {
             abi.encodeWithSelector(
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
-                "AA33 reverted",
-                BaseSingletonPaymaster.PaymasterConfigLengthInvalid.selector
+                string("AA33 reverted"),
+                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterConfigLengthInvalid.selector)
             )
         );
         submitUserOp(op);
     }
 
-    function testFailedPaymasterSignatureLengthInvalid(uint8 _mode) external {
+    function test_RevetWhen_PaymasterSignatureLengthInvalid(uint8 _mode) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
 
-        PackedUserOperation memory op =
-            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        PackedUserOperation memory op = fillUserOp();
 
         if (mode == VERIFYING_MODE) {
             op.paymasterAndData = abi.encodePacked(
@@ -146,18 +143,17 @@ contract SingletonPaymasterTest is Test {
             abi.encodeWithSelector(
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
-                "AA33 reverted",
-                BaseSingletonPaymaster.PaymasterSignatureLengthInvalid.selector
+                string("AA33 reverted"),
+                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterSignatureLengthInvalid.selector)
             )
         );
         submitUserOp(op);
     }
 
-    function testFailedTokenAddressInvalid() external {
+    function test_RevertWhen_TokenAddressInvalid() external {
         setupERC20();
 
-        PackedUserOperation memory op =
-            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        PackedUserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
@@ -176,18 +172,17 @@ contract SingletonPaymasterTest is Test {
             abi.encodeWithSelector(
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
-                "AA33 reverted",
-                BaseSingletonPaymaster.TokenAddressInvalid.selector
+                string("AA33 reverted"),
+                abi.encodeWithSelector(BaseSingletonPaymaster.TokenAddressInvalid.selector)
             )
         );
         submitUserOp(op);
     }
 
-    function testFailedPriceInvalid() external {
+    function test_RevertWhen_PriceInvalid() external {
         setupERC20();
 
-        PackedUserOperation memory op =
-            fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
+        PackedUserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
@@ -207,52 +202,30 @@ contract SingletonPaymasterTest is Test {
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
                 "AA33 reverted",
-                BaseSingletonPaymaster.TokenAddressInvalid.selector
+                abi.encodeWithSelector(BaseSingletonPaymaster.PriceInvalid.selector)
             )
         );
         submitUserOp(op);
     }
 
-    //function testVerifyingPaymasterSuccess() external {
-    //    PackedUserOperation memory op =
-    //        fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
-    //    op.paymasterAndData = getSignedPaymasterData(op);
-    //    op.signature = signUserOp(op, userKey);
-    //    submitUserOp(op);
-    //}
+    function test_RevertWhen_PaymasterAndDataLengthInvalid() external {
+        setupERC20();
 
-    //function testVerifyingPaymasterFailedSignatureLengthInvalid() external {
-    //    PackedUserOperation memory op =
-    //        fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
-    //    op.paymasterAndData = abi.encodePacked(getSignedPaymasterData(op), hex"696969");
-    //    op.signature = signUserOp(op, userKey);
-    //    vm.expectRevert(
-    //        abi.encodeWithSelector(
-    //            IEntryPoint.FailedOpWithRevert.selector,
-    //            uint256(0),
-    //            "AA33 reverted",
-    //            abi.encodeWithSelector(BaseSingletonPaymaster.SignatureLengthInvalid.selector)
-    //        )
-    //    );
-    //    submitUserOp(op);
-    //}
+        PackedUserOperation memory op = fillUserOp();
 
-    //function testVerifyingPaymasterFailedPaymasterConfigLengthInvalid() external {
-    //    vm.deal(address(account), 1e18);
-    //    PackedUserOperation memory op =
-    //        fillUserOp(account, userKey, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector));
-    //    op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000));
-    //    op.signature = signUserOp(op, userKey);
-    //    vm.expectRevert(
-    //        abi.encodeWithSelector(
-    //            IEntryPoint.FailedOpWithRevert.selector,
-    //            uint256(0),
-    //            "AA33 reverted",
-    //            abi.encodeWithSelector(BaseSingletonPaymaster.SignatureLengthInvalid.selector)
-    //        )
-    //    );
-    //    submitUserOp(op);
-    //}
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000));
+
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEntryPoint.FailedOpWithRevert.selector,
+                uint256(0),
+                "AA33 reverted",
+                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterDataLengthInvalid.selector)
+            )
+        );
+        submitUserOp(op);
+    }
 
     // HELPERS //
 
@@ -301,18 +274,16 @@ contract SingletonPaymasterTest is Test {
         revert("unexpected mode");
     }
 
-    function fillUserOp(SimpleAccount _sender, uint256 _key, address _to, uint256 _value, bytes memory _data)
-        private
-        view
-        returns (PackedUserOperation memory op)
-    {
-        op.sender = address(_sender);
-        op.nonce = entryPoint.getNonce(address(_sender), 0);
-        op.callData = abi.encodeWithSelector(SimpleAccount.execute.selector, _to, _value, _data);
+    function fillUserOp() private view returns (PackedUserOperation memory op) {
+        op.sender = address(account);
+        op.nonce = entryPoint.getNonce(address(account), 0);
+        op.callData = abi.encodeWithSelector(
+            SimpleAccount.execute.selector, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector)
+        );
         op.accountGasLimits = bytes32(abi.encodePacked(bytes16(uint128(80000)), bytes16(uint128(50000))));
         op.preVerificationGas = 50000;
         op.gasFees = bytes32(abi.encodePacked(bytes16(uint128(100)), bytes16(uint128(1000000000))));
-        op.signature = signUserOp(op, _key);
+        op.signature = signUserOp(op, userKey);
         return op;
     }
 
@@ -332,5 +303,20 @@ contract SingletonPaymasterTest is Test {
         token.sudoMint(address(account), 1000e18); // 1000 usdc;
         token.sudoMint(address(paymaster), 1); // 1000 usdc;
         token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
+    }
+
+    // vm.expectRevert does not work for v0.6 for some reason, so this helper is used instead
+    function submitUserOpAndExpectRevert(PackedUserOperation memory op, bytes memory revertBytes) private {
+        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
+        ops[0] = op;
+        (bool s, bytes memory d) =
+            address(entryPoint).call(abi.encodeWithSelector(EntryPoint.handleOps.selector, ops, beneficiary));
+        vm.assertFalse(s);
+        vm.assertEq(d, revertBytes, "Revert bytes should match");
+    }
+
+    function test_RevertWhen_NonEntryPointCaller() external {
+        vm.expectRevert("Sender not EntryPoint");
+        paymaster.postOp(PostOpMode.opSucceeded, "", 0, 0);
     }
 }

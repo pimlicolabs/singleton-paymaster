@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {BaseSingletonPaymaster} from "../base/BaseSingletonPaymaster.sol";
-import {PostOpMode} from "../interfaces/PostOpMode.sol";
-import {IPaymasterV7} from "../interfaces/IPaymasterV7.sol";
+import {BaseSingletonPaymaster} from "./base/BaseSingletonPaymaster.sol";
+import {PostOpMode} from "./interfaces/PostOpMode.sol";
+import {IPaymasterV7} from "./interfaces/IPaymasterV7.sol";
 
 import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
@@ -17,8 +17,8 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 using UserOperationLib for PackedUserOperation;
 
-abstract contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
-    constructor() {}
+contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
+    constructor(address _entryPoint, address _owner) BaseSingletonPaymaster(_entryPoint, _owner) {}
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/

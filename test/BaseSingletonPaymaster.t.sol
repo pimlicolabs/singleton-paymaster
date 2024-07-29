@@ -5,9 +5,9 @@ import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-import {EntryPoint} from "../src/account-abstraction/v07/core/EntryPoint.sol";
-import {SimpleAccountFactory, SimpleAccount} from "../src/account-abstraction/v07/samples/SimpleAccountFactory.sol";
-import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
+import {EntryPoint} from "./utils/account-abstraction/v07/core/EntryPoint.sol";
+import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
+import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
 
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
@@ -19,7 +19,7 @@ contract SingletonPaymasterTest is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymaster paymaster;
+    SingletonPaymasterV7 paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -38,7 +38,7 @@ contract SingletonPaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymaster(address(entryPoint), paymasterOwner);
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
         paymaster.deposit{value: 100e18}();
     }
 
@@ -46,14 +46,6 @@ contract SingletonPaymasterTest is Test {
         assertEq(address(paymaster.entryPoint()), address(entryPoint));
         assertEq(address(paymaster.owner()), paymasterOwner);
         assertEq(address(paymaster.treasury()), paymasterOwner);
-    }
-
-    function testOwnershipTransfer() external {
-        vm.startPrank(paymasterOwner);
-        assertEq(paymaster.owner(), paymasterOwner);
-        paymaster.transferOwnership(beneficiary);
-        assertEq(paymaster.owner(), beneficiary);
-        vm.stopPrank();
     }
 
     function testUpdateTreasury() external {

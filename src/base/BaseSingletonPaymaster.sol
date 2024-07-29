@@ -9,13 +9,13 @@ import {PostOpMode} from "../interfaces/PostOpMode.sol";
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-// TODO: delete this import
-import {Test, console} from "forge-std/Test.sol";
-
 abstract contract BaseSingletonPaymaster is BasePaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /// @dev The paymaster data length is invalid.
+    error PaymasterDataLengthInvalid();
 
     /// @dev The paymaster data mode is invalid. The mode should be 0 and 1.
     error PaymasterModeInvalid();
@@ -112,7 +112,7 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
     /// @return paymasterConfig The paymaster configuration data.
     function _parsePaymasterAndData(bytes calldata _paymasterAndData) internal pure returns (uint8, bytes calldata) {
         if (_paymasterAndData.length < PAYMASTER_CONFIG_OFFSET) {
-            return (0, msg.data[0:0]);
+            revert PaymasterDataLengthInvalid();
         }
 
         uint8 mode = uint8(bytes1(_paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 1]));
@@ -126,7 +126,6 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
         pure
         returns (uint48, uint48, address, uint256, bytes calldata)
     {
-        console.log("_parseErc20Config");
         if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -158,9 +157,6 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
         pure
         returns (uint48, uint48, bytes calldata)
     {
-        console.log("_parseVerifyingConfig");
-        console.log("_paymasterConfig.length: ", _paymasterConfig.length);
-        console.logBytes(_paymasterConfig);
         if (_paymasterConfig.length < 12) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -187,8 +183,13 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
         address token = address(bytes20(_context[cursor:cursor += 20]));
         uint256 price = uint256(bytes32(_context[cursor:cursor += 32]));
         bytes32 userOpHash = bytes32(_context[cursor:cursor += 32]);
-        uint256 maxFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
-        uint256 maxPriorityFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
+        uint256 maxFeePerGas = 0;
+        uint256 maxPriorityFeePerGas = 0;
+
+        if (_context.length == 168) {
+            maxFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
+            maxPriorityFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
+        }
 
         return (sender, token, price, userOpHash, maxFeePerGas, maxPriorityFeePerGas);
     }

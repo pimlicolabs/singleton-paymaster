@@ -1,11 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {Test, console} from "forge-std/Test.sol";
-
-import {BaseSingletonPaymaster} from "../base/BaseSingletonPaymaster.sol";
-import {PostOpMode} from "../interfaces/PostOpMode.sol";
-import {IPaymasterV6} from "../interfaces/IPaymasterV6.sol";
+import {BaseSingletonPaymaster} from "./base/BaseSingletonPaymaster.sol";
+import {PostOpMode} from "./interfaces/PostOpMode.sol";
+import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
 
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
@@ -16,8 +14,8 @@ import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-abstract contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
-    constructor() {}
+contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
+    constructor(address _entryPoint, address _owner) BaseSingletonPaymaster(_entryPoint, _owner) {}
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.6 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -73,7 +71,9 @@ abstract contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
         if (mode == 0) {
             return _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
-        } else if (mode == 1) {
+        }
+
+        if (mode == 1) {
             return _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
 
