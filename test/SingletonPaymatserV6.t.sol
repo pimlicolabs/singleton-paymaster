@@ -341,7 +341,7 @@ contract SingletonPaymasterV6Test is Test {
             SimpleAccount.execute.selector, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector)
         );
         op.callGasLimit = 50000;
-        op.verificationGasLimit = 80000;
+        op.verificationGasLimit = 180000;
         op.preVerificationGas = 50000;
         op.maxFeePerGas = 50;
         op.maxPriorityFeePerGas = 15;

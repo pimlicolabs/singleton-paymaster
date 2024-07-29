@@ -371,14 +371,4 @@ contract SingletonPaymasterV7Test is Test {
         token.sudoMint(address(paymaster), 1); // 1000 usdc;
         token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
     }
-
-    // vm.expectRevert does not work for v0.6 for some reason, so this helper is used instead
-    function submitUserOpAndExpectRevert(PackedUserOperation memory op, bytes memory revertBytes) private {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
-        ops[0] = op;
-        (bool s, bytes memory d) =
-            address(entryPoint).call(abi.encodeWithSelector(EntryPoint.handleOps.selector, ops, beneficiary));
-        vm.assertFalse(s);
-        vm.assertEq(d, revertBytes, "Revert bytes should match");
-    }
 }
