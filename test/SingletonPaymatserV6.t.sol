@@ -7,11 +7,11 @@ import {ERC20} from "openzeppelin-contracts-v5.0.0/contracts/token/ERC20/ERC20.s
 import "@openzeppelin-v4.8.0/contracts/utils/cryptography/ECDSA.sol";
 
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
-import {IEntryPoint} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
+import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
 import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {SingletonPaymasterV6} from "../src/SingletonPaymasterV6.sol";
+import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
 
 import {EntryPoint} from "./utils/account-abstraction/v06/core/EntryPoint.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
@@ -31,7 +31,7 @@ contract SingletonPaymasterV6Test is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymasterV6 paymaster;
+    SingletonPaymaster paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -50,8 +50,11 @@ contract SingletonPaymasterV6Test is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
-        paymaster.deposit{value: 100e18}();
+
+        address[] memory entryPoints = new address[](1);
+        entryPoints[0] = address(entryPoint);
+        paymaster = new SingletonPaymaster(entryPoints, paymasterOwner);
+        paymaster.deposit{value: 100e18}(address(entryPoint));
     }
 
     function testSuccess(uint8 _mode) external {
@@ -274,7 +277,11 @@ contract SingletonPaymasterV6Test is Test {
 
     function test_RevertWhen_NonEntryPointCaller() external {
         vm.expectRevert("Sender not EntryPoint");
-        paymaster.postOp(PostOpMode.opSucceeded, "", 0);
+        paymaster.postOp(
+            PostOpMode.opSucceeded,
+            abi.encodePacked(address(account), address(token), uint256(5), bytes32(0), uint256(0), uint256(0)),
+            0
+        );
     }
 
     // Helpers

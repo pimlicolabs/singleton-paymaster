@@ -14,18 +14,28 @@ import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
  * provides helper methods for staking.
  * Validates that the postOp is called only by the entryPoint.
  */
-abstract contract BasePaymaster is Ownable, EntryPointValidator {
-    IEntryPoint public immutable entryPoint;
+abstract contract BaseMultiPaymaster is Ownable, EntryPointValidator {
+    mapping(address entryPoints => bool isValidEntryPoint) public entryPoints;
 
-    constructor(address _entryPoint, address _owner) Ownable(_owner) {
-        entryPoint = IEntryPoint(_entryPoint);
+    constructor(address[] memory _entryPoints, address _owner) Ownable(_owner) {
+        for (uint256 i = 0; i < _entryPoints.length; i++) {
+            entryPoints[_entryPoints[i]] = true;
+        }
+    }
+
+    function removeEntryPoint(address _entryPoint) public onlyOwner {
+        entryPoints[_entryPoint] = false;
+    }
+
+    function addEntryPoint(address _entryPoint) public onlyOwner {
+        entryPoints[_entryPoint] = true;
     }
 
     /**
      * Add a deposit for this paymaster, used for paying for transaction fees.
      */
-    function deposit() public payable {
-        entryPoint.depositTo{value: msg.value}(address(this));
+    function deposit(address entryPoint) public payable {
+        IEntryPoint(entryPoint).depositTo{value: msg.value}(address(this));
     }
 
     /**
@@ -33,8 +43,8 @@ abstract contract BasePaymaster is Ownable, EntryPointValidator {
      * @param withdrawAddress - Target to send to.
      * @param amount          - Amount to withdraw.
      */
-    function withdrawTo(address payable withdrawAddress, uint256 amount) public onlyOwner {
-        entryPoint.withdrawTo(withdrawAddress, amount);
+    function withdrawTo(address entryPoint, address payable withdrawAddress, uint256 amount) public onlyOwner {
+        IEntryPoint(entryPoint).withdrawTo(withdrawAddress, amount);
     }
 
     /**
@@ -42,23 +52,23 @@ abstract contract BasePaymaster is Ownable, EntryPointValidator {
      * This method can also carry eth value to add to the current stake.
      * @param unstakeDelaySec - The unstake delay for this paymaster. Can only be increased.
      */
-    function addStake(uint32 unstakeDelaySec) external payable onlyOwner {
-        entryPoint.addStake{value: msg.value}(unstakeDelaySec);
+    function addStake(address entryPoint, uint32 unstakeDelaySec) external payable onlyOwner {
+        IEntryPoint(entryPoint).addStake{value: msg.value}(unstakeDelaySec);
     }
 
     /**
      * Return current paymaster's deposit on the entryPoint.
      */
-    function getDeposit() public view returns (uint256) {
-        return entryPoint.balanceOf(address(this));
+    function getDeposit(address entryPoint) public view returns (uint256) {
+        return IEntryPoint(entryPoint).balanceOf(address(this));
     }
 
     /**
      * Unlock the stake, in order to withdraw it.
      * The paymaster can't serve requests once unlocked, until it calls addStake again
      */
-    function unlockStake() external onlyOwner {
-        entryPoint.unlockStake();
+    function unlockStake(address entryPoint) external onlyOwner {
+        IEntryPoint(entryPoint).unlockStake();
     }
 
     /**
@@ -66,14 +76,14 @@ abstract contract BasePaymaster is Ownable, EntryPointValidator {
      * stake must be unlocked first (and then wait for the unstakeDelay to be over)
      * @param withdrawAddress - The address to send withdrawn value.
      */
-    function withdrawStake(address payable withdrawAddress) external onlyOwner {
-        entryPoint.withdrawStake(withdrawAddress);
+    function withdrawStake(address entryPoint, address payable withdrawAddress) external onlyOwner {
+        IEntryPoint(entryPoint).withdrawStake(withdrawAddress);
     }
 
     /**
      * Validate the call is made from a valid entrypoint
      */
     function _requireFromEntryPoint() internal view override {
-        require(msg.sender == address(entryPoint), "Sender not EntryPoint");
+        require(entryPoints[msg.sender], "Sender not EntryPoint");
     }
 }

@@ -8,8 +8,11 @@ import {PostOpMode} from "../interfaces/PostOpMode.sol";
 
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/core/UserOperationLib.sol";
 
-abstract contract BaseSingletonPaymaster is BasePaymaster {
+import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
+
+abstract contract BaseSingletonPaymaster is Ownable {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -62,6 +65,9 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     uint256 internal constant POST_OP_GAS = 50_000;
+    uint256 internal constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLibV07.PAYMASTER_VALIDATION_GAS_OFFSET;
+    uint256 internal constant PAYMASTER_POSTOP_GAS_OFFSET = UserOperationLibV07.PAYMASTER_POSTOP_GAS_OFFSET;
+    uint256 internal constant PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
     uint256 internal constant PAYMASTER_CONFIG_OFFSET = PAYMASTER_DATA_OFFSET + 1;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -79,9 +85,8 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Initializes the SingletonPaymaster contract with the given parameters.
-    /// @param _entryPoint The ERC-4337 EntryPoint contract.
     /// @param _owner The address that will be set as the owner of the contract.
-    constructor(address _entryPoint, address _owner) BasePaymaster(_entryPoint, _owner) {
+    constructor(address _owner) {
         treasury = _owner;
         signers[_owner] = true;
     }
