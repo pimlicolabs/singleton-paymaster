@@ -227,6 +227,15 @@ contract SingletonPaymasterV7Test is Test {
         submitUserOp(op);
     }
 
+    function test_PostOpTransferFromFailed() external {
+        PackedUserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = getSignedPaymasterData(1, op);
+
+        op.signature = signUserOp(op, userKey);
+        submitUserOp(op);
+    }
+
     // HELPERS //
 
     function getSignedPaymasterData(uint8 _mode, PackedUserOperation memory _userOp)
@@ -251,7 +260,7 @@ contract SingletonPaymasterV7Test is Test {
             /* ERC20 MODE */
             uint48 validUntil = 0;
             uint48 validAfter = 0;
-            uint256 price = 1;
+            uint256 price = 0.0016 * 1e18;
             address erc20 = address(token);
             bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);

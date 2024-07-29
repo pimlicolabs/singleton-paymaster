@@ -5,6 +5,8 @@ import {BaseSingletonPaymaster} from "./base/BaseSingletonPaymaster.sol";
 import {PostOpMode} from "./interfaces/PostOpMode.sol";
 import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
 
+import {Test, console2} from "forge-std/Test.sol";
+
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
 
@@ -58,8 +60,11 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * price) / 1e18;
 
         if (_mode != PostOpMode.postOpReverted) {
-            SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-            emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+            try this.attemptTransfer(token, sender, treasury, costInToken) {
+                emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
+            } catch (bytes memory revertReason) {
+                revert PostOpTransferFromFailed(revertReason);
+            }
         }
     }
 
@@ -148,5 +153,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         );
 
         return keccak256(abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _price, _token));
+    }
+
+    function attemptTransfer(address token, address origin, address beneficiary, uint256 amount) external {
+        require(msg.sender == address(this)); // this function should be called only by this contract
+        SafeTransferLib.safeTransferFrom(token, origin, beneficiary, amount);
     }
 }

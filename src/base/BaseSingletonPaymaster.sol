@@ -32,6 +32,9 @@ abstract contract BaseSingletonPaymaster is BasePaymaster {
     /// @dev The token price is invalid.
     error PriceInvalid();
 
+    /// @dev When payment failed due to the PostOp TransferFrom failing.
+    error PostOpTransferFromFailed(bytes reason);
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/

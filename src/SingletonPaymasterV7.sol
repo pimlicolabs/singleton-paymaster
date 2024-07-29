@@ -43,16 +43,17 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     }
 
     // @notice Skipped in verifying mode because postOp isn't called when context is empty.
-    function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost, uint256 _actualUserOpFeePerGas)
-        internal
-    {
+    function _postOp(
+        PostOpMode, /*_mode*/
+        bytes calldata _context,
+        uint256 _actualGasCost,
+        uint256 _actualUserOpFeePerGas
+    ) internal {
         (address sender, address token, uint256 price, bytes32 userOpHash,,) = _parseContext(_context);
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * price) / 1e18;
 
-        if (_mode != PostOpMode.postOpReverted) {
-            SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-            emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
-        }
+        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
+        emit UserOperationSponsored(userOpHash, sender, true, costInToken, price);
     }
 
     function _validatePaymasterUserOp(PackedUserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )

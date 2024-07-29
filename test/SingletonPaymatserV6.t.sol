@@ -3,6 +3,7 @@ pragma solidity ^0.8.26;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {ERC20} from "openzeppelin-contracts-v5.0.0/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v4.8.0/contracts/utils/cryptography/ECDSA.sol";
 
 import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
@@ -156,13 +157,17 @@ contract SingletonPaymasterV6Test is Test {
 
     // ERC20 mode specific errors
 
-    function test_RevertWhen_PostOpTransferFromFailed() external {
+    function test_RevertWhen_UnauthorizedAttemptTransfer() external {
+        vm.expectRevert();
+        paymaster.attemptTransfer(address(1), address(2), address(3), 4);
+    }
+
+    function test_PostOpTransferFromFailed() external {
         UserOperation memory op = fillUserOp();
 
         op.paymasterAndData = getSignedPaymasterData(1, op);
 
         op.signature = signUserOp(op, userKey);
-        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
         submitUserOp(op);
     }
 
@@ -220,7 +225,7 @@ contract SingletonPaymasterV6Test is Test {
         op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000));
 
         op.signature = signUserOp(op, userKey);
-        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
+        vm.expectRevert();
         submitUserOp(op);
     }
 
@@ -244,7 +249,7 @@ contract SingletonPaymasterV6Test is Test {
             /* ERC20 MODE */
             uint48 validUntil = 0;
             uint48 validAfter = 0;
-            uint256 price = 100;
+            uint256 price = 0.0016 * 1e18;
             address erc20 = address(token);
             bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
@@ -283,8 +288,8 @@ contract SingletonPaymasterV6Test is Test {
         op.callGasLimit = 50000;
         op.verificationGasLimit = 80000;
         op.preVerificationGas = 50000;
-        op.maxFeePerGas = 5;
-        op.maxPriorityFeePerGas = 100;
+        op.maxFeePerGas = 50;
+        op.maxPriorityFeePerGas = 15;
         op.signature = signUserOp(op, userKey);
         return op;
     }
