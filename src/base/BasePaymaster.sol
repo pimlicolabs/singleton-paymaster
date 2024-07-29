@@ -14,7 +14,7 @@ import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
  * provides helper methods for staking.
  * Validates that the postOp is called only by the entryPoint.
  */
-abstract contract BasePaymaster is Ownable, EntryPointValidator {
+abstract contract BasePaymaster is Ownable {
     IEntryPoint public immutable entryPoint;
 
     constructor(address _entryPoint, address _owner) Ownable(_owner) {
@@ -68,12 +68,5 @@ abstract contract BasePaymaster is Ownable, EntryPointValidator {
      */
     function withdrawStake(address payable withdrawAddress) external onlyOwner {
         entryPoint.withdrawStake(withdrawAddress);
-    }
-
-    /**
-     * Validate the call is made from a valid entrypoint
-     */
-    function _requireFromEntryPoint() internal view override {
-        require(msg.sender == address(entryPoint), "Sender not EntryPoint");
     }
 }

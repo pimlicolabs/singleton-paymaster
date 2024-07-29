@@ -9,6 +9,7 @@ import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
 
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
+import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 
 import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -17,9 +18,11 @@ import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPointValidator, IPaymasterV6 {
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*        ENTRYPOINT V0.6 ERC-4337 PAYMASTER OVERRIDES        */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+    IEntryPoint private entryPoint;
+
+    constructor(address _entryPoint) {
+        entryPoint = IEntryPoint(_entryPoint);
+    }
 
     /// @inheritdoc IPaymasterV6
     function validatePaymasterUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
@@ -93,29 +96,14 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
 
         // if user wants to fund their smart account with credits from the Pimlico dashboard.
         if (fundAmount > 0) {
-            //IEntryPoint();
+            try entryPoint.withdrawTo(payable(_userOp.sender), fundAmount) {
+                emit FundsDistributed(_userOp.sender, fundAmount);
+            } catch (bytes memory revertReason) {
+                revert FundDistributionFailed(revertReason);
+            }
         }
 
         return (context, validationData);
-    }
-
-    function _validateVerifyingModeWithFunding(
-        UserOperation calldata _userOp,
-        bytes calldata _paymasterConfig,
-        bytes32 _userOpHash,
-        uint256 _fundAmount
-    ) internal returns (bytes memory, uint256) {
-        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
-            getHash(_userOp, validUntil, validAfter, address(0), 0, _fundAmount)
-        );
-        address verifyingSigner = ECDSA.recover(hash, signature);
-
-        bool isSignatureValid = signers[verifyingSigner];
-        uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
-
-        emit UserOperationSponsored(_userOpHash, _userOp.sender, false, 0, 0);
-        return ("", validationData);
     }
 
     function _validateVerifyingMode(
@@ -201,5 +189,12 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
     function attemptTransfer(address token, address origin, address beneficiary, uint256 amount) external {
         require(msg.sender == address(this)); // this function should be called only by this contract
         SafeTransferLib.safeTransferFrom(token, origin, beneficiary, amount);
+    }
+
+    /**
+     * Validate the call is made from a valid entrypoint
+     */
+    function _requireFromEntryPoint() internal view virtual override {
+        require(msg.sender == address(entryPoint), "Sender not EntryPoint");
     }
 }

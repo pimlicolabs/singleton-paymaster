@@ -39,26 +39,27 @@ contract BaseMultiPaymasterTest is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        address[] memory entryPoints = new address[](1);
+        address[] memory entryPoints = new address[](2);
         entryPoints[0] = address(entryPoint);
+        entryPoints[1] = address(1);
         paymaster = new SingletonPaymaster(entryPoints, paymasterOwner);
 
         vm.deal(paymasterOwner, 100e18);
         paymaster.deposit{value: INITIAL_PAYMASTER_DEPOSIT}(address(entryPoint));
     }
 
-    function testAddEntryPoint() external {
-        address ep = makeAddr("dummyEp");
-        vm.prank(paymasterOwner);
-        paymaster.addEntryPoint(ep);
-        assertTrue(paymaster.entryPoints(ep));
-    }
+    //function testAddEntryPoint() external {
+    //    address ep = makeAddr("dummyEp");
+    //    vm.prank(paymasterOwner);
+    //    paymaster.addEntryPoint(ep);
+    //    assertTrue(paymaster.entryPoints(ep));
+    //}
 
-    function testRemoveEntryPoint() external {
-        vm.prank(paymasterOwner);
-        paymaster.removeEntryPoint(address(entryPoint));
-        assertFalse(paymaster.entryPoints(address(entryPoint)));
-    }
+    //function testRemoveEntryPoint() external {
+    //    vm.prank(paymasterOwner);
+    //    paymaster.removeEntryPoint(address(entryPoint));
+    //    assertFalse(paymaster.entryPoints(address(entryPoint)));
+    //}
 
     function testConstructorSuccess() external {
         address[] memory entryPoints = new address[](2);

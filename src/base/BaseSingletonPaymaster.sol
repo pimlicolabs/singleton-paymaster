@@ -43,8 +43,11 @@ abstract contract BaseSingletonPaymaster is Ownable {
     /// @dev The token exchange rate is invalid.
     error ExchangeRateInvalid();
 
-    /// @dev When payment failed due to the PostOp TransferFrom failing.
+    /// @dev When payment failed due to the TransferFrom in the PostOp failing.
     error PostOpTransferFromFailed(bytes reason);
+
+    /// @dev When the paymaster fails to distribute funds to the smart account sender.
+    error FundDistributionFailed(bytes reason);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -68,6 +71,9 @@ abstract contract BaseSingletonPaymaster is Ownable {
     /// @dev Emitted when a signer is removed.
     event SignerRemoved(address signer);
 
+    /// @dev When the user receives funds from the paymaster.
+    event FundsDistributed(address indexed receiver, uint256 fundingAmount);
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -76,7 +82,8 @@ abstract contract BaseSingletonPaymaster is Ownable {
     uint256 internal constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLibV07.PAYMASTER_VALIDATION_GAS_OFFSET;
     uint256 internal constant PAYMASTER_POSTOP_GAS_OFFSET = UserOperationLibV07.PAYMASTER_POSTOP_GAS_OFFSET;
     uint256 internal constant PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
-    uint256 internal constant PAYMASTER_CONFIG_OFFSET = PAYMASTER_DATA_OFFSET + 1;
+    // @notice Offset of 17 bytes from PAYMASTER_DATA_OFFSET after extracting mode + fundAmount
+    uint256 internal constant PAYMASTER_CONFIG_OFFSET = PAYMASTER_DATA_OFFSET + 1 + 16;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -137,10 +144,10 @@ abstract contract BaseSingletonPaymaster is Ownable {
 
         uint256 cursor = PAYMASTER_DATA_OFFSET;
         uint8 mode = uint8(bytes1(_paymasterAndData[cursor:cursor += 1]));
-        uint256 fundAmount = uint256(bytes32(_paymasterAndData[cursor:cursor += 32]));
+        uint128 fundAmount = uint128(bytes16(_paymasterAndData[cursor:cursor += 16]));
         bytes calldata paymasterConfig = _paymasterAndData[cursor:];
 
-        return (mode, fundAmount, paymasterConfig);
+        return (mode, uint256(fundAmount), paymasterConfig);
     }
 
     function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20Config memory) {
@@ -220,7 +227,7 @@ abstract contract BaseSingletonPaymaster is Ownable {
         return (sender, token, price, userOpHash, maxFeePerGas, maxPriorityFeePerGas);
     }
 
-    // @dev Helper to bypass stack too deep issue.
+    // @dev V6 Helper to bypass stack too deep issue.
     function _createContext(UserOperation calldata userOp, address token, uint256 price, bytes32 userOpHash)
         internal
         pure
@@ -230,7 +237,7 @@ abstract contract BaseSingletonPaymaster is Ownable {
             abi.encodePacked(userOp.sender, token, price, userOpHash, userOp.maxFeePerGas, userOp.maxPriorityFeePerGas);
     }
 
-    // @dev Helper to bypass stack too deep issue.
+    // @dev V7 Helper to bypass stack too deep issue.
     function _createContext(PackedUserOperation calldata userOp, address token, uint256 price, bytes32 userOpHash)
         internal
         pure

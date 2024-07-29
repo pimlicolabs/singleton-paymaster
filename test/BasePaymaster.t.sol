@@ -96,15 +96,15 @@ contract BasePaymasterTest is Test {
         vm.stopPrank();
     }
 
-    function testRequireFromEntryPoint() external {
-        MockBasePaymaster mock = new MockBasePaymaster(address(entryPoint), address(paymasterOwner));
-        vm.prank(address(entryPoint));
-        mock.checkIsCallerEntryPoint();
-    }
+    //function testRequireFromEntryPoint() external {
+    //    MockBasePaymaster mock = new MockBasePaymaster(address(entryPoint), address(paymasterOwner));
+    //    vm.prank(address(entryPoint));
+    //    mock.checkIsCallerEntryPoint();
+    //}
 
-    function test_RevertWhen_SenderNotEntryPoint() external {
-        MockBasePaymaster mock = new MockBasePaymaster(address(entryPoint), address(paymasterOwner));
-        vm.expectRevert("Sender not EntryPoint");
-        mock.checkIsCallerEntryPoint();
-    }
+    //function test_RevertWhen_SenderNotEntryPoint() external {
+    //    MockBasePaymaster mock = new MockBasePaymaster(address(entryPoint), address(paymasterOwner));
+    //    vm.expectRevert("Sender not EntryPoint");
+    //    mock.checkIsCallerEntryPoint();
+    //}
 }

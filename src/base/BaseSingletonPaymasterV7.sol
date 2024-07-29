@@ -9,6 +9,7 @@ import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
 
 import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
 
 import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
@@ -20,6 +21,12 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 using UserOperationLib for PackedUserOperation;
 
 abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPointValidator, IPaymasterV7 {
+    IEntryPoint private entryPoint;
+
+    constructor(address _entryPoint) {
+        entryPoint = IEntryPoint(_entryPoint);
+    }
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -64,14 +71,31 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
         (uint8 mode, uint256 fundAmount, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData);
 
-        if (mode == 0) {
-            return _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash, fundAmount);
-        } else if (mode == 1) {
-            return _validateERC20Mode(_userOp, paymasterConfig, _userOpHash, fundAmount);
+        if (mode > 1) {
+            revert PaymasterModeInvalid();
         }
 
-        // only valid modes are 1 and 0
-        revert PaymasterModeInvalid();
+        bytes memory context;
+        uint256 validationData;
+
+        if (mode == 0) {
+            (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash, fundAmount);
+        }
+
+        if (mode == 1) {
+            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash, fundAmount);
+        }
+
+        // if user wants to fund their smart account with credits from the Pimlico dashboard.
+        if (fundAmount > 0) {
+            try entryPoint.withdrawTo(payable(_userOp.sender), fundAmount) {
+                emit FundsDistributed(_userOp.sender, fundAmount);
+            } catch (bytes memory revertReason) {
+                revert FundDistributionFailed(revertReason);
+            }
+        }
+
+        return (context, validationData);
     }
 
     function _validateVerifyingMode(
@@ -151,5 +175,12 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
                 userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token, _fundAmount
             )
         );
+    }
+
+    /**
+     * Validate the call is made from a valid entrypoint
+     */
+    function _requireFromEntryPoint() internal view virtual override {
+        require(msg.sender == address(entryPoint), "Sender not EntryPoint");
     }
 }

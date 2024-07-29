@@ -14,22 +14,8 @@ import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
  * provides helper methods for staking.
  * Validates that the postOp is called only by the entryPoint.
  */
-abstract contract BaseMultiPaymaster is Ownable, EntryPointValidator {
-    mapping(address entryPoints => bool isValidEntryPoint) public entryPoints;
-
-    constructor(address[] memory _entryPoints, address _owner) Ownable(_owner) {
-        for (uint256 i = 0; i < _entryPoints.length; i++) {
-            entryPoints[_entryPoints[i]] = true;
-        }
-    }
-
-    function removeEntryPoint(address _entryPoint) public onlyOwner {
-        entryPoints[_entryPoint] = false;
-    }
-
-    function addEntryPoint(address _entryPoint) public onlyOwner {
-        entryPoints[_entryPoint] = true;
-    }
+abstract contract BaseMultiPaymaster is Ownable {
+    constructor(address _owner) Ownable(_owner) {}
 
     /**
      * Add a deposit for this paymaster, used for paying for transaction fees.
@@ -78,12 +64,5 @@ abstract contract BaseMultiPaymaster is Ownable, EntryPointValidator {
      */
     function withdrawStake(address entryPoint, address payable withdrawAddress) external onlyOwner {
         IEntryPoint(entryPoint).withdrawStake(withdrawAddress);
-    }
-
-    /**
-     * Validate the call is made from a valid entrypoint
-     */
-    function _requireFromEntryPoint() internal view override {
-        require(entryPoints[msg.sender], "Sender not EntryPoint");
     }
 }

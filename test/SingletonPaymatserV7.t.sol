@@ -47,8 +47,9 @@ contract SingletonPaymasterV7Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        address[] memory entryPoints = new address[](1);
+        address[] memory entryPoints = new address[](2);
         entryPoints[0] = address(entryPoint);
+        entryPoints[1] = address(1);
         paymaster = new SingletonPaymaster(entryPoints, paymasterOwner);
         paymaster.deposit{value: 100e18}(address(entryPoint));
     }
@@ -59,7 +60,7 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(mode, op);
+        op.paymasterAndData = getSignedPaymasterData(mode, 0, op);
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
     }
@@ -70,7 +71,8 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode);
+        op.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode, uint128(0));
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -97,7 +99,8 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), mode, _randomBytes);
+        op.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), mode, uint128(0), _randomBytes);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -163,6 +166,7 @@ contract SingletonPaymasterV7Test is Test {
             uint128(100000),
             uint128(50000),
             ERC20_MODE,
+            uint128(0), // fund amount
             uint48(0),
             int48(0),
             address(0), // will throw here, token address cannot be zero.
@@ -192,6 +196,7 @@ contract SingletonPaymasterV7Test is Test {
             uint128(100000),
             uint128(50000),
             ERC20_MODE,
+            uint128(0), // fund amount
             uint48(0),
             int48(0),
             address(token),
@@ -233,15 +238,20 @@ contract SingletonPaymasterV7Test is Test {
     function test_PostOpTransferFromFailed() external {
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(1, op);
+        op.paymasterAndData = getSignedPaymasterData(1, 0, op);
 
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
     }
 
+    function test_RevertWhen_NonEntryPointCaller() external {
+        vm.expectRevert("Sender not EntryPoint");
+        paymaster.postOp(PostOpMode.opSucceeded, "", 0, 0);
+    }
+
     // HELPERS //
 
-    function getSignedPaymasterData(uint8 _mode, PackedUserOperation memory _userOp)
+    function getSignedPaymasterData(uint8 _mode, uint128 _fundAmount, PackedUserOperation memory _userOp)
         private
         view
         returns (bytes memory)
@@ -250,13 +260,20 @@ contract SingletonPaymasterV7Test is Test {
             /* VERIFYING MODE */
             uint48 validUntil = 0;
             uint48 validAfter = 0;
-            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0, 0);
+            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0, _fundAmount);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
             bytes memory signature = abi.encodePacked(r, s, v);
 
             return abi.encodePacked(
-                address(paymaster), uint128(100000), uint128(50000), uint8(0), validUntil, validAfter, signature
+                address(paymaster),
+                uint128(100000),
+                uint128(50000),
+                uint8(0),
+                _fundAmount,
+                validUntil,
+                validAfter,
+                signature
             );
         }
         if (_mode == ERC20_MODE) {
@@ -265,7 +282,7 @@ contract SingletonPaymasterV7Test is Test {
             uint48 validAfter = 0;
             uint256 price = 0.0016 * 1e18;
             address erc20 = address(token);
-            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price, 0);
+            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price, _fundAmount);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
             bytes memory signature = abi.encodePacked(r, s, v);
@@ -275,6 +292,7 @@ contract SingletonPaymasterV7Test is Test {
                 uint128(100000),
                 uint128(50000),
                 uint8(1), // mode 1
+                _fundAmount,
                 validUntil,
                 validAfter,
                 address(token),
@@ -325,10 +343,5 @@ contract SingletonPaymasterV7Test is Test {
             address(entryPoint).call(abi.encodeWithSelector(EntryPoint.handleOps.selector, ops, beneficiary));
         vm.assertFalse(s);
         vm.assertEq(d, revertBytes, "Revert bytes should match");
-    }
-
-    function test_RevertWhen_NonEntryPointCaller() external {
-        vm.expectRevert("Sender not EntryPoint");
-        paymaster.postOp(PostOpMode.opSucceeded, "", 0, 0);
     }
 }

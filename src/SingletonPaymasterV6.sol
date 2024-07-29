@@ -9,6 +9,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, BasePaymaster, BaseSing
     constructor(address _entryPoint, address _owner)
         BasePaymaster(_entryPoint, _owner)
         BaseSingletonPaymaster(_owner)
-        BaseSingletonPaymasterV6()
+        BaseSingletonPaymasterV6(_entryPoint)
     {}
 }
