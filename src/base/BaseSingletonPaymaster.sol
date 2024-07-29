@@ -12,6 +12,14 @@ import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/c
 
 import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
 
+struct ERC20Config {
+    uint48 validUntil;
+    uint48 validAfter;
+    address token;
+    uint256 exchangeRate;
+    bytes signature;
+}
+
 abstract contract BaseSingletonPaymaster is Ownable {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
@@ -32,8 +40,8 @@ abstract contract BaseSingletonPaymaster is Ownable {
     /// @dev The token is invalid.
     error TokenAddressInvalid();
 
-    /// @dev The token price is invalid.
-    error PriceInvalid();
+    /// @dev The token exchange rate is invalid.
+    error ExchangeRateInvalid();
 
     /// @dev When payment failed due to the PostOp TransferFrom failing.
     error PostOpTransferFromFailed(bytes reason);
@@ -118,22 +126,24 @@ abstract contract BaseSingletonPaymaster is Ownable {
     /// @param _paymasterAndData The paymasterAndData field of the user operation.
     /// @return mode The paymaster mode.
     /// @return paymasterConfig The paymaster configuration data.
-    function _parsePaymasterAndData(bytes calldata _paymasterAndData) internal pure returns (uint8, bytes calldata) {
+    function _parsePaymasterAndData(bytes calldata _paymasterAndData)
+        internal
+        pure
+        returns (uint8, uint256, bytes calldata)
+    {
         if (_paymasterAndData.length < PAYMASTER_CONFIG_OFFSET) {
             revert PaymasterDataLengthInvalid();
         }
 
-        uint8 mode = uint8(bytes1(_paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 1]));
-        bytes calldata paymasterConfig = _paymasterAndData[PAYMASTER_DATA_OFFSET + 1:];
+        uint256 cursor = PAYMASTER_DATA_OFFSET;
+        uint8 mode = uint8(bytes1(_paymasterAndData[cursor:cursor += 1]));
+        uint256 fundAmount = uint256(bytes32(_paymasterAndData[cursor:cursor += 32]));
+        bytes calldata paymasterConfig = _paymasterAndData[cursor:];
 
-        return (mode, paymasterConfig);
+        return (mode, fundAmount, paymasterConfig);
     }
 
-    function _parseErc20Config(bytes calldata _paymasterConfig)
-        internal
-        pure
-        returns (uint48, uint48, address, uint256, bytes calldata)
-    {
+    function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20Config memory) {
         if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -142,22 +152,30 @@ abstract contract BaseSingletonPaymaster is Ownable {
         uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
         uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
         address token = address(bytes20(_paymasterConfig[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
+        uint256 exchangeRate = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
         bytes calldata signature = _paymasterConfig[cursor:];
 
         if (token == address(0)) {
             revert TokenAddressInvalid();
         }
 
-        if (price == 0) {
-            revert PriceInvalid();
+        if (exchangeRate == 0) {
+            revert ExchangeRateInvalid();
         }
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();
         }
 
-        return (validUntil, validAfter, token, price, signature);
+        ERC20Config memory config = ERC20Config({
+            validUntil: validUntil,
+            validAfter: validAfter,
+            token: token,
+            exchangeRate: exchangeRate,
+            signature: signature
+        });
+
+        return config;
     }
 
     function _parseVerifyingConfig(bytes calldata _paymasterConfig)
@@ -210,5 +228,14 @@ abstract contract BaseSingletonPaymaster is Ownable {
     {
         return
             abi.encodePacked(userOp.sender, token, price, userOpHash, userOp.maxFeePerGas, userOp.maxPriorityFeePerGas);
+    }
+
+    // @dev Helper to bypass stack too deep issue.
+    function _createContext(PackedUserOperation calldata userOp, address token, uint256 price, bytes32 userOpHash)
+        internal
+        pure
+        returns (bytes memory)
+    {
+        return abi.encodePacked(userOp.sender, token, price, userOpHash, uint256(0), uint256(0));
     }
 }

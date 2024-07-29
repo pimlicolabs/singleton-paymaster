@@ -2,7 +2,7 @@
 pragma solidity ^0.8.26;
 
 import {BasePaymaster} from "./BasePaymaster.sol";
-import {BaseSingletonPaymaster} from "./BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster, ERC20Config} from "./BaseSingletonPaymaster.sol";
 import {PostOpMode} from "../interfaces/PostOpMode.sol";
 import {IPaymasterV6} from "../interfaces/IPaymasterV6.sol";
 import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
@@ -71,27 +71,44 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         internal
         returns (bytes memory, uint256)
     {
-        (uint8 mode, bytes calldata paymasterConfig) = _parsePaymasterAndData(_userOp.paymasterAndData);
+        (uint8 mode, uint256 fundAmount, bytes calldata paymasterConfig) =
+            _parsePaymasterAndData(_userOp.paymasterAndData);
 
+        if (mode > 1) {
+            revert PaymasterModeInvalid();
+        }
+
+        bytes memory context;
+        uint256 validationData;
+
+        // verifying mode
         if (mode == 0) {
-            return _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
+            (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash, fundAmount);
         }
 
+        // erc20 mode
         if (mode == 1) {
-            return _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
+            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash, fundAmount);
         }
 
-        // only valid modes are 1 and 0
-        revert PaymasterModeInvalid();
+        // if user wants to fund their smart account with credits from the Pimlico dashboard.
+        if (fundAmount > 0) {
+            //IEntryPoint();
+        }
+
+        return (context, validationData);
     }
 
-    function _validateVerifyingMode(
+    function _validateVerifyingModeWithFunding(
         UserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
-        bytes32 _userOpHash
+        bytes32 _userOpHash,
+        uint256 _fundAmount
     ) internal returns (bytes memory, uint256) {
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, address(0), 0));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
+            getHash(_userOp, validUntil, validAfter, address(0), 0, _fundAmount)
+        );
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
@@ -101,22 +118,42 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         return ("", validationData);
     }
 
-    function _validateERC20Mode(UserOperation calldata _userOp, bytes calldata _paymasterConfig, bytes32 _userOpHash)
-        internal
-        view
-        returns (bytes memory, uint256)
-    {
-        (uint48 validUntil, uint48 validAfter, address token, uint256 exchangeRate, bytes calldata signature) =
-            _parseErc20Config(_paymasterConfig);
-
-        bytes memory context = _createContext(_userOp, token, exchangeRate, _userOpHash);
-
-        bytes32 hash =
-            MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, token, exchangeRate));
+    function _validateVerifyingMode(
+        UserOperation calldata _userOp,
+        bytes calldata _paymasterConfig,
+        bytes32 _userOpHash,
+        uint256 _fundAmount
+    ) internal returns (bytes memory, uint256) {
+        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
+            getHash(_userOp, validUntil, validAfter, address(0), 0, _fundAmount)
+        );
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
+
+        emit UserOperationSponsored(_userOpHash, _userOp.sender, false, 0, 0);
+        return ("", validationData);
+    }
+
+    function _validateERC20Mode(
+        UserOperation calldata _userOp,
+        bytes calldata _paymasterConfig,
+        bytes32 _userOpHash,
+        uint256 _fundAmount
+    ) internal view returns (bytes memory, uint256) {
+        ERC20Config memory cfg = _parseErc20Config(_paymasterConfig);
+
+        bytes memory context = _createContext(_userOp, cfg.token, cfg.exchangeRate, _userOpHash);
+
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
+            getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.exchangeRate, _fundAmount)
+        );
+        address verifyingSigner = ECDSA.recover(hash, cfg.signature);
+
+        bool isSignatureValid = signers[verifyingSigner];
+        uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
 
         return (context, validationData);
     }
@@ -131,12 +168,14 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
     /// @param _validUntil The timestamp until which the user operation is valid.
     /// @param _validAfter The timestamp after which the user operation is valid.
     /// @param _exchangeRate The maximum amount of tokens allowed for the user operation. 0 if no limit.
+    /// @param _fundAmount The amount that the paymaster should send to
     function getHash(
         UserOperation calldata _userOp,
         uint256 _validUntil,
         uint256 _validAfter,
         address _token,
-        uint256 _exchangeRate
+        uint256 _exchangeRate,
+        uint256 _fundAmount
     ) public view returns (bytes32) {
         bytes32 userOpHash = keccak256(
             abi.encode(
@@ -153,7 +192,9 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         );
 
         return keccak256(
-            abi.encode(userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token)
+            abi.encode(
+                userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token, _fundAmount
+            )
         );
     }
 

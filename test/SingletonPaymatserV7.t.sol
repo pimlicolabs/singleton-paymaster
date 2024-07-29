@@ -182,7 +182,7 @@ contract SingletonPaymasterV7Test is Test {
         submitUserOp(op);
     }
 
-    function test_RevertWhen_PriceInvalid() external {
+    function test_RevertWhen_ExchangeRateInvalid() external {
         setupERC20();
 
         PackedUserOperation memory op = fillUserOp();
@@ -205,7 +205,7 @@ contract SingletonPaymasterV7Test is Test {
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
                 "AA33 reverted",
-                abi.encodeWithSelector(BaseSingletonPaymaster.PriceInvalid.selector)
+                abi.encodeWithSelector(BaseSingletonPaymaster.ExchangeRateInvalid.selector)
             )
         );
         submitUserOp(op);
@@ -250,7 +250,7 @@ contract SingletonPaymasterV7Test is Test {
             /* VERIFYING MODE */
             uint48 validUntil = 0;
             uint48 validAfter = 0;
-            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0);
+            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0, 0);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
             bytes memory signature = abi.encodePacked(r, s, v);
@@ -265,7 +265,7 @@ contract SingletonPaymasterV7Test is Test {
             uint48 validAfter = 0;
             uint256 price = 0.0016 * 1e18;
             address erc20 = address(token);
-            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price);
+            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price, 0);
             bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
             (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
             bytes memory signature = abi.encodePacked(r, s, v);
