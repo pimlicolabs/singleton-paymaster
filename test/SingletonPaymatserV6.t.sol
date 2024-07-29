@@ -20,6 +20,22 @@ import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v
 
 using ECDSA for bytes32;
 
+struct SignatureData {
+    uint8 v;
+    bytes32 r;
+    bytes32 s;
+}
+
+struct PaymasterData {
+    address paymasterAddress;
+    uint128 preVerificationGas;
+    uint128 postOpGas;
+    uint8 mode;
+    uint128 fundAmount;
+    uint48 validUntil;
+    uint48 validAfter;
+}
+
 contract SingletonPaymasterV6Test is Test {
     // helpers
     uint8 immutable VERIFYING_MODE = 0;
@@ -244,57 +260,78 @@ contract SingletonPaymasterV6Test is Test {
 
     // HELPERS //
 
-    function getSignedPaymasterData(uint8 _mode, uint128 _fundAmount, UserOperation memory _userOp)
+    function getSignedPaymasterData(uint8 mode, uint128 fundAmount, UserOperation memory userOp)
         private
         view
         returns (bytes memory)
     {
-        if (_mode == VERIFYING_MODE) {
-            /* VERIFYING MODE */
-            uint48 validUntil = 0;
-            uint48 validAfter = 0;
-            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, address(0), 0, _fundAmount);
-            bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
-            bytes memory signature = abi.encodePacked(r, s, v);
+        PaymasterData memory data = PaymasterData({
+            paymasterAddress: address(paymaster),
+            preVerificationGas: 250000,
+            postOpGas: 150000,
+            mode: mode,
+            fundAmount: fundAmount,
+            validUntil: 0,
+            validAfter: 0
+        });
 
-            return abi.encodePacked(
-                address(paymaster),
-                uint128(100000),
-                uint128(50000),
-                uint8(0), // mode 0
-                _fundAmount,
-                validUntil,
-                validAfter,
-                signature
-            );
-        }
-        if (_mode == ERC20_MODE) {
-            /* ERC20 MODE */
-            uint48 validUntil = 0;
-            uint48 validAfter = 0;
-            uint256 price = 0.0016 * 1e18;
-            address erc20 = address(token);
-            bytes32 hash = paymaster.getHash(_userOp, validUntil, validAfter, erc20, price, _fundAmount);
-            bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
-            bytes memory signature = abi.encodePacked(r, s, v);
-
-            return abi.encodePacked(
-                address(paymaster),
-                uint128(100000),
-                uint128(50000),
-                uint8(1), // mode 1
-                _fundAmount,
-                validUntil,
-                validAfter,
-                address(token),
-                price,
-                signature
-            );
+        if (mode == VERIFYING_MODE) {
+            return getVerifyingModeData(data, userOp);
+        } else if (mode == ERC20_MODE) {
+            return getERC20ModeData(data, userOp);
         }
 
         revert("unexpected mode");
+    }
+
+    function getVerifyingModeData(PaymasterData memory data, UserOperation memory userOp)
+        private
+        view
+        returns (bytes memory)
+    {
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, address(0), 0, data.fundAmount);
+        SignatureData memory sig = getSignature(hash);
+
+        return abi.encodePacked(
+            data.paymasterAddress,
+            data.preVerificationGas,
+            data.postOpGas,
+            data.mode,
+            data.fundAmount,
+            data.validUntil,
+            data.validAfter,
+            abi.encodePacked(sig.r, sig.s, sig.v)
+        );
+    }
+
+    function getERC20ModeData(PaymasterData memory data, UserOperation memory userOp)
+        private
+        view
+        returns (bytes memory)
+    {
+        uint256 price = 0.0016 * 1e18;
+        address erc20 = address(token);
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, price, data.fundAmount);
+        SignatureData memory sig = getSignature(hash);
+
+        return abi.encodePacked(
+            data.paymasterAddress,
+            data.preVerificationGas,
+            data.postOpGas,
+            data.mode,
+            data.fundAmount,
+            data.validUntil,
+            data.validAfter,
+            erc20,
+            price,
+            abi.encodePacked(sig.r, sig.s, sig.v)
+        );
+    }
+
+    function getSignature(bytes32 hash) private view returns (SignatureData memory) {
+        bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
+        return SignatureData(v, r, s);
     }
 
     function fillUserOp() public view returns (UserOperation memory op) {
