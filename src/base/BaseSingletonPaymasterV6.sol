@@ -63,7 +63,7 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
 
         if (_mode != PostOpMode.postOpReverted) {
             try this.attemptTransfer(token, sender, treasury, costInToken) {
-                emit UserOperationSponsored(userOpHash, sender, true, costInToken, exchangeRate);
+                emit UserOperationSponsored(userOpHash, sender, token, true, costInToken, exchangeRate);
             } catch (bytes memory revertReason) {
                 revert PostOpTransferFromFailed(revertReason);
             }
@@ -121,7 +121,7 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        emit UserOperationSponsored(_userOpHash, _userOp.sender, false, 0, 0);
+        emit UserOperationSponsored(_userOpHash, _userOp.sender, address(0), false, 0, 0);
         return ("", validationData);
     }
 

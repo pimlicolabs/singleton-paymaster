@@ -57,6 +57,7 @@ abstract contract BaseSingletonPaymaster is Ownable {
     event UserOperationSponsored(
         bytes32 indexed userOpHash,
         address indexed user,
+        address token,
         bool sponsoredWithErc20,
         uint256 tokenAmountPaid,
         uint256 tokenPrice

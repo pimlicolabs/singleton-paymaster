@@ -61,7 +61,7 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * exchangeRate) / 1e18;
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-        emit UserOperationSponsored(userOpHash, sender, true, costInToken, exchangeRate);
+        emit UserOperationSponsored(userOpHash, sender, token, true, costInToken, exchangeRate);
     }
 
     function _validatePaymasterUserOp(PackedUserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
@@ -114,7 +114,7 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        emit UserOperationSponsored(_userOpHash, _userOp.getSender(), false, 0, 0);
+        emit UserOperationSponsored(_userOpHash, _userOp.getSender(), address(0), false, 0, 0);
         return ("", validationData);
     }
 
