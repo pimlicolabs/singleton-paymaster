@@ -11,6 +11,7 @@ import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.so
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
+import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/core/UserOperationLib.sol";
 
 import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -21,7 +22,15 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 using UserOperationLib for PackedUserOperation;
 
 abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPointValidator, IPaymasterV7 {
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                  CONSTANTS AND IMMUTABLES                  */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
     IEntryPoint private entryPoint;
+    uint256 private immutable PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                        CONSTRUCTOR                         */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     constructor(address _entryPoint) {
         entryPoint = IEntryPoint(_entryPoint);
@@ -69,7 +78,7 @@ abstract contract BaseSingletonPaymasterV7 is BaseSingletonPaymaster, EntryPoint
         returns (bytes memory, uint256)
     {
         (uint8 mode, uint256 fundAmount, bytes calldata paymasterConfig) =
-            _parsePaymasterAndData(_userOp.paymasterAndData);
+            _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
         if (mode > 1) {
             revert PaymasterModeInvalid();

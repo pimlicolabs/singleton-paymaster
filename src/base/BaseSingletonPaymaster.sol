@@ -80,11 +80,6 @@ abstract contract BaseSingletonPaymaster is Ownable {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     uint256 internal constant POST_OP_GAS = 50_000;
-    uint256 internal constant PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLibV07.PAYMASTER_VALIDATION_GAS_OFFSET;
-    uint256 internal constant PAYMASTER_POSTOP_GAS_OFFSET = UserOperationLibV07.PAYMASTER_POSTOP_GAS_OFFSET;
-    uint256 internal constant PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
-    // @notice Offset of 17 bytes from PAYMASTER_DATA_OFFSET after extracting mode + fundAmount
-    uint256 internal constant PAYMASTER_CONFIG_OFFSET = PAYMASTER_DATA_OFFSET + 1 + 16;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -134,19 +129,18 @@ abstract contract BaseSingletonPaymaster is Ownable {
     /// @param _paymasterAndData The paymasterAndData field of the user operation.
     /// @return mode The paymaster mode.
     /// @return paymasterConfig The paymaster configuration data.
-    function _parsePaymasterAndData(bytes calldata _paymasterAndData)
+    function _parsePaymasterAndData(bytes calldata _paymasterAndData, uint256 _paymasterDataOffset)
         internal
         pure
         returns (uint8, uint256, bytes calldata)
     {
-        if (_paymasterAndData.length < PAYMASTER_CONFIG_OFFSET) {
+        if (_paymasterAndData.length < _paymasterDataOffset + 17) {
             revert PaymasterDataLengthInvalid();
         }
 
-        uint256 cursor = PAYMASTER_DATA_OFFSET;
-        uint8 mode = uint8(bytes1(_paymasterAndData[cursor:cursor += 1]));
-        uint128 fundAmount = uint128(bytes16(_paymasterAndData[cursor:cursor += 16]));
-        bytes calldata paymasterConfig = _paymasterAndData[cursor:];
+        uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));
+        uint128 fundAmount = uint128(bytes16(_paymasterAndData[_paymasterDataOffset + 1:_paymasterDataOffset + 17]));
+        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 17:];
 
         return (mode, uint256(fundAmount), paymasterConfig);
     }
@@ -156,12 +150,11 @@ abstract contract BaseSingletonPaymaster is Ownable {
             revert PaymasterConfigLengthInvalid();
         }
 
-        uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        address token = address(bytes20(_paymasterConfig[cursor:cursor += 20]));
-        uint256 exchangeRate = uint256(bytes32(_paymasterConfig[cursor:cursor += 32]));
-        bytes calldata signature = _paymasterConfig[cursor:];
+        uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
+        uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
+        address token = address(bytes20(_paymasterConfig[12:32]));
+        uint256 exchangeRate = uint256(bytes32(_paymasterConfig[32:64]));
+        bytes calldata signature = _paymasterConfig[64:];
 
         if (token == address(0)) {
             revert TokenAddressInvalid();
@@ -195,10 +188,9 @@ abstract contract BaseSingletonPaymaster is Ownable {
             revert PaymasterConfigLengthInvalid();
         }
 
-        uint256 cursor = 0;
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[cursor:cursor += 6]));
-        bytes calldata signature = _paymasterConfig[cursor:];
+        uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
+        uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
+        bytes calldata signature = _paymasterConfig[12:];
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();
@@ -212,17 +204,16 @@ abstract contract BaseSingletonPaymaster is Ownable {
         pure
         returns (address, address, uint256, bytes32, uint256, uint256)
     {
-        uint256 cursor = 0;
-        address sender = address(bytes20(_context[cursor:cursor += 20]));
-        address token = address(bytes20(_context[cursor:cursor += 20]));
-        uint256 price = uint256(bytes32(_context[cursor:cursor += 32]));
-        bytes32 userOpHash = bytes32(_context[cursor:cursor += 32]);
+        address sender = address(bytes20(_context[0:20]));
+        address token = address(bytes20(_context[20:40]));
+        uint256 price = uint256(bytes32(_context[40:72]));
+        bytes32 userOpHash = bytes32(_context[72:104]);
         uint256 maxFeePerGas = 0;
         uint256 maxPriorityFeePerGas = 0;
 
         if (_context.length == 168) {
-            maxFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
-            maxPriorityFeePerGas = uint256(bytes32(_context[cursor:cursor += 32]));
+            maxFeePerGas = uint256(bytes32(_context[104:136]));
+            maxPriorityFeePerGas = uint256(bytes32(_context[136:168]));
         }
 
         return (sender, token, price, userOpHash, maxFeePerGas, maxPriorityFeePerGas);

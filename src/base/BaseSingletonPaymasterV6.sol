@@ -18,11 +18,23 @@ import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPointValidator, IPaymasterV6 {
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                  CONSTANTS AND IMMUTABLES                  */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
     IEntryPoint private entryPoint;
+    uint256 private immutable PAYMASTER_DATA_OFFSET = 20;
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                        CONSTRUCTOR                         */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     constructor(address _entryPoint) {
         entryPoint = IEntryPoint(_entryPoint);
     }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @inheritdoc IPaymasterV6
     function validatePaymasterUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
@@ -75,7 +87,7 @@ abstract contract BaseSingletonPaymasterV6 is BaseSingletonPaymaster, EntryPoint
         returns (bytes memory, uint256)
     {
         (uint8 mode, uint256 fundAmount, bytes calldata paymasterConfig) =
-            _parsePaymasterAndData(_userOp.paymasterAndData);
+            _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
         if (mode > 1) {
             revert PaymasterModeInvalid();

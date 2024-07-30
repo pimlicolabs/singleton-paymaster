@@ -28,8 +28,6 @@ struct SignatureData {
 
 struct PaymasterData {
     address paymasterAddress;
-    uint128 preVerificationGas;
-    uint128 postOpGas;
     uint8 mode;
     uint128 fundAmount;
     uint48 validUntil;
@@ -267,8 +265,6 @@ contract SingletonPaymasterV6Test is Test {
     {
         PaymasterData memory data = PaymasterData({
             paymasterAddress: address(paymaster),
-            preVerificationGas: 250000,
-            postOpGas: 150000,
             mode: mode,
             fundAmount: fundAmount,
             validUntil: 0,
@@ -294,8 +290,6 @@ contract SingletonPaymasterV6Test is Test {
 
         return abi.encodePacked(
             data.paymasterAddress,
-            data.preVerificationGas,
-            data.postOpGas,
             data.mode,
             data.fundAmount,
             data.validUntil,
@@ -316,8 +310,6 @@ contract SingletonPaymasterV6Test is Test {
 
         return abi.encodePacked(
             data.paymasterAddress,
-            data.preVerificationGas,
-            data.postOpGas,
             data.mode,
             data.fundAmount,
             data.validUntil,
