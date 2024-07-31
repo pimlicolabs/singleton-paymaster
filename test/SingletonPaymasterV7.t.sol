@@ -277,6 +277,8 @@ contract SingletonPaymasterV7Test is Test {
             validAfter: 0
         });
 
+        userOp.paymasterAndData = abi.encodePacked(data.paymasterAddress, data.preVerificationGas, data.postOpGas);
+
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp);
         } else if (mode == ERC20_MODE) {

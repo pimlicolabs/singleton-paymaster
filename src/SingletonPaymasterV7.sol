@@ -24,6 +24,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
     uint256 private immutable PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
+    uint256 private immutable PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLibV07.PAYMASTER_VALIDATION_GAS_OFFSET;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
@@ -163,6 +164,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
                 keccak256(_userOp.initCode),
                 keccak256(_userOp.callData),
                 _userOp.accountGasLimits,
+                uint256(bytes32(_userOp.paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET])),
                 _userOp.preVerificationGas,
                 _userOp.gasFees
             )

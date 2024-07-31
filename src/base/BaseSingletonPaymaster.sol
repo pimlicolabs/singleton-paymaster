@@ -12,8 +12,6 @@ import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/c
 
 import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
 
-import {Test, console} from "forge-std/Test.sol";
-
 struct ERC20Config {
     uint48 validUntil;
     uint48 validAfter;
@@ -147,7 +145,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     }
 
     function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20Config memory) {
-        console.log("_parseErc20Config");
         if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -186,7 +183,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         pure
         returns (uint48, uint48, uint256, bytes calldata)
     {
-        console.log("_parseVerifyingConfig");
         if (_paymasterConfig.length < 28) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -195,11 +191,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
         uint128 fundAmount = uint128(bytes16(_paymasterConfig[12:28]));
         bytes calldata signature = _paymasterConfig[28:];
-
-        console.log("validUntil", validUntil);
-        console.log("validAfter", validAfter);
-        console.log("fundAmount", fundAmount);
-        console.logBytes(signature);
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();
