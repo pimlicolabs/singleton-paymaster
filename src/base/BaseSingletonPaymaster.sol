@@ -20,7 +20,7 @@ struct ERC20Config {
     bytes signature;
 }
 
-abstract contract BaseSingletonPaymaster is Ownable {
+abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -97,7 +97,7 @@ abstract contract BaseSingletonPaymaster is Ownable {
 
     /// @notice Initializes the SingletonPaymaster contract with the given parameters.
     /// @param _owner The address that will be set as the owner of the contract.
-    constructor(address _owner) {
+    constructor(address _entryPoint, address _owner) BasePaymaster(_entryPoint, _owner) {
         treasury = _owner;
         signers[_owner] = true;
     }

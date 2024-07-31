@@ -8,7 +8,7 @@ import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
+import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
 import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
 
 import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
@@ -43,7 +43,7 @@ contract SingletonPaymasterV7Test is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymaster paymaster;
+    SingletonPaymasterV7 paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -63,11 +63,8 @@ contract SingletonPaymasterV7Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        address[] memory entryPoints = new address[](2);
-        entryPoints[0] = address(entryPoint);
-        entryPoints[1] = address(1);
-        paymaster = new SingletonPaymaster(entryPoints, paymasterOwner);
-        paymaster.deposit{value: 100e18}(address(entryPoint));
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
+        paymaster.deposit{value: 100e18}();
     }
 
     function testSuccess(uint8 _mode) external {

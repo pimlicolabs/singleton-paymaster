@@ -11,7 +11,7 @@ import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
 import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {SingletonPaymaster} from "../src/SingletonPaymaster.sol";
+import {SingletonPaymasterV6} from "../src/SingletonPaymasterV6.sol";
 
 import {EntryPoint} from "./utils/account-abstraction/v06/core/EntryPoint.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
@@ -45,7 +45,7 @@ contract SingletonPaymasterV6Test is Test {
     address user;
     uint256 userKey;
 
-    SingletonPaymaster paymaster;
+    SingletonPaymasterV6 paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
     EntryPoint entryPoint;
@@ -65,11 +65,8 @@ contract SingletonPaymasterV6Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        address[] memory entryPoints = new address[](2);
-        entryPoints[0] = address(entryPoint);
-        entryPoints[1] = address(1);
-        paymaster = new SingletonPaymaster(entryPoints, paymasterOwner);
-        paymaster.deposit{value: 100e18}(address(entryPoint));
+        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
+        paymaster.deposit{value: 100e18}();
     }
 
     function testSuccess(uint8 _mode) external {

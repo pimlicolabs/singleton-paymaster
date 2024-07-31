@@ -7,8 +7,6 @@ import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
 import {IERC165} from "@openzeppelin-v5.0.0/contracts/utils/introspection/IERC165.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-import {EntryPointValidator} from "../interfaces/EntryPointValidator.sol";
-
 /**
  * Helper class for creating a paymaster.
  * provides helper methods for staking.
@@ -68,5 +66,12 @@ abstract contract BasePaymaster is Ownable {
      */
     function withdrawStake(address payable withdrawAddress) external onlyOwner {
         entryPoint.withdrawStake(withdrawAddress);
+    }
+
+    /**
+     * Validate the call is made from a valid entrypoint
+     */
+    function _requireFromEntryPoint() internal view virtual {
+        require(msg.sender == address(entryPoint), "Sender not EntryPoint");
     }
 }
