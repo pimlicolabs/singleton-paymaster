@@ -283,16 +283,13 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, address(0), 0, data.fundAmount);
-        SignatureData memory sig = getSignature(hash);
+        bytes memory sig = getSignature(hash);
 
-        return abi.encodePacked(
-            data.paymasterAddress,
-            data.mode,
-            data.fundAmount,
-            data.validUntil,
-            data.validAfter,
-            abi.encodePacked(sig.r, sig.s, sig.v)
-        );
+        console2.log("real signature");
+        console2.logBytes(sig);
+
+        return
+            abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, data.fundAmount, sig);
     }
 
     function getERC20ModeData(PaymasterData memory data, UserOperation memory userOp)
@@ -302,25 +299,16 @@ contract SingletonPaymasterV6Test is Test {
     {
         uint256 price = 0.0016 * 1e18;
         address erc20 = address(token);
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, price, data.fundAmount);
-        SignatureData memory sig = getSignature(hash);
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, price, 0);
+        bytes memory sig = getSignature(hash);
 
-        return abi.encodePacked(
-            data.paymasterAddress,
-            data.mode,
-            data.fundAmount,
-            data.validUntil,
-            data.validAfter,
-            erc20,
-            price,
-            abi.encodePacked(sig.r, sig.s, sig.v)
-        );
+        return abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, erc20, price, sig);
     }
 
-    function getSignature(bytes32 hash) private view returns (SignatureData memory) {
+    function getSignature(bytes32 hash) private view returns (bytes memory) {
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
-        return SignatureData(v, r, s);
+        return abi.encodePacked(r, s, v);
     }
 
     function fillUserOp() public view returns (UserOperation memory op) {

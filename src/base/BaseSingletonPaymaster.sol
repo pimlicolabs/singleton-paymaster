@@ -12,6 +12,8 @@ import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/c
 
 import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
 
+import {Test, console} from "forge-std/Test.sol";
+
 struct ERC20Config {
     uint48 validUntil;
     uint48 validAfter;
@@ -132,20 +134,20 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     function _parsePaymasterAndData(bytes calldata _paymasterAndData, uint256 _paymasterDataOffset)
         internal
         pure
-        returns (uint8, uint256, bytes calldata)
+        returns (uint8, bytes calldata)
     {
-        if (_paymasterAndData.length < _paymasterDataOffset + 17) {
+        if (_paymasterAndData.length < _paymasterDataOffset + 1) {
             revert PaymasterDataLengthInvalid();
         }
 
         uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));
-        uint128 fundAmount = uint128(bytes16(_paymasterAndData[_paymasterDataOffset + 1:_paymasterDataOffset + 17]));
-        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 17:];
+        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 1:];
 
-        return (mode, uint256(fundAmount), paymasterConfig);
+        return (mode, paymasterConfig);
     }
 
     function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20Config memory) {
+        console.log("_parseErc20Config");
         if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -182,21 +184,28 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     function _parseVerifyingConfig(bytes calldata _paymasterConfig)
         internal
         pure
-        returns (uint48, uint48, bytes calldata)
+        returns (uint48, uint48, uint256, bytes calldata)
     {
-        if (_paymasterConfig.length < 12) {
+        console.log("_parseVerifyingConfig");
+        if (_paymasterConfig.length < 28) {
             revert PaymasterConfigLengthInvalid();
         }
 
         uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
         uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
-        bytes calldata signature = _paymasterConfig[12:];
+        uint128 fundAmount = uint128(bytes16(_paymasterConfig[12:28]));
+        bytes calldata signature = _paymasterConfig[28:];
+
+        console.log("validUntil", validUntil);
+        console.log("validAfter", validAfter);
+        console.log("fundAmount", fundAmount);
+        console.logBytes(signature);
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();
         }
 
-        return (validUntil, validAfter, signature);
+        return (validUntil, validAfter, fundAmount, signature);
     }
 
     function _parseContext(bytes calldata _context)
@@ -236,5 +245,13 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         returns (bytes memory)
     {
         return abi.encodePacked(userOp.sender, token, price, userOpHash, uint256(0), uint256(0));
+    }
+
+    function _distributePaymasterDeposit(address payable _recipient, uint256 _fundAmount) internal {
+        try entryPoint.withdrawTo(_recipient, _fundAmount) {
+            emit FundsDistributed(_recipient, _fundAmount);
+        } catch (bytes memory revertReason) {
+            revert FundDistributionFailed(revertReason);
+        }
     }
 }

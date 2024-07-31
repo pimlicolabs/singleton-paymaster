@@ -81,7 +81,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         internal
         returns (bytes memory, uint256)
     {
-        (uint8 mode, uint256 fundAmount, bytes calldata paymasterConfig) =
+        (uint8 mode, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
         if (mode > 1) {
@@ -93,21 +93,12 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
         // verifying mode
         if (mode == 0) {
-            (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash, fundAmount);
+            (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
         // erc20 mode
         if (mode == 1) {
-            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash, fundAmount);
-        }
-
-        // if user wants to fund their smart account with credits from the Pimlico dashboard.
-        if (fundAmount > 0) {
-            try entryPoint.withdrawTo(payable(_userOp.sender), fundAmount) {
-                emit FundsDistributed(_userOp.sender, fundAmount);
-            } catch (bytes memory revertReason) {
-                revert FundDistributionFailed(revertReason);
-            }
+            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
 
         return (context, validationData);
@@ -116,34 +107,38 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     function _validateVerifyingMode(
         UserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
-        bytes32 _userOpHash,
-        uint256 _fundAmount
+        bytes32 _userOpHash
     ) internal returns (bytes memory, uint256) {
-        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
-            getHash(_userOp, validUntil, validAfter, address(0), 0, _fundAmount)
-        );
+        (uint48 validUntil, uint48 validAfter, uint256 fundAmount, bytes calldata signature) =
+            _parseVerifyingConfig(_paymasterConfig);
+
+        bytes32 hash =
+            MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, address(0), 0, fundAmount));
         address verifyingSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
+        // if user wants to fund their smart account with credits from the Pimlico dashboard.
+        if (fundAmount > 0) {
+            _distributePaymasterDeposit(payable(_userOp.sender), fundAmount);
+        }
+
         emit UserOperationSponsored(_userOpHash, _userOp.sender, address(0), false, 0, 0);
         return ("", validationData);
     }
 
-    function _validateERC20Mode(
-        UserOperation calldata _userOp,
-        bytes calldata _paymasterConfig,
-        bytes32 _userOpHash,
-        uint256 _fundAmount
-    ) internal view returns (bytes memory, uint256) {
+    function _validateERC20Mode(UserOperation calldata _userOp, bytes calldata _paymasterConfig, bytes32 _userOpHash)
+        internal
+        view
+        returns (bytes memory, uint256)
+    {
         ERC20Config memory cfg = _parseErc20Config(_paymasterConfig);
 
         bytes memory context = _createContext(_userOp, cfg.token, cfg.exchangeRate, _userOpHash);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
-            getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.exchangeRate, _fundAmount)
+            getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.exchangeRate, 0)
         );
         address verifyingSigner = ECDSA.recover(hash, cfg.signature);
 
