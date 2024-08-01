@@ -179,11 +179,6 @@ contract SingletonPaymasterV6Test is Test {
 
     // ERC20 mode specific errors
 
-    function test_RevertWhen_UnauthorizedAttemptTransfer() external {
-        vm.expectRevert();
-        paymaster.attemptTransfer(address(1), address(2), address(3), 4);
-    }
-
     function test_PostOpTransferFromFailed() external {
         UserOperation memory op = fillUserOp();
 

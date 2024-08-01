@@ -26,7 +26,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev The paymaster data length is invalid.
-    error PaymasterDataLengthInvalid();
+    error PaymasterAndDataLengthInvalid();
 
     /// @dev The paymaster data mode is invalid. The mode should be 0 and 1.
     error PaymasterModeInvalid();
@@ -44,7 +44,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     error ExchangeRateInvalid();
 
     /// @dev When payment failed due to the TransferFrom in the PostOp failing.
-    error PostOpTransferFromFailed(bytes reason);
+    error PostOpTransferFromFailed(bytes msg);
 
     /// @dev When the paymaster fails to distribute funds to the smart account sender.
     error FundDistributionFailed(bytes reason);
@@ -126,16 +126,14 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Parses the paymasterAndData field of the user operation and returns the paymaster mode and data.
-    /// @param _paymasterAndData The paymasterAndData field of the user operation.
-    /// @return mode The paymaster mode.
-    /// @return paymasterConfig The paymaster configuration data.
+    /// @notice _paymasterDataOffset is the start index of the data part of _paymasterAndData
     function _parsePaymasterAndData(bytes calldata _paymasterAndData, uint256 _paymasterDataOffset)
         internal
         pure
         returns (uint8, bytes calldata)
     {
         if (_paymasterAndData.length < _paymasterDataOffset + 1) {
-            revert PaymasterDataLengthInvalid();
+            revert PaymasterAndDataLengthInvalid();
         }
 
         uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));

@@ -143,11 +143,13 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Hashes the user operation data.
-    /// @dev In verifying mode, _token and _exchangeRate are 0.
+    /// @dev In verifying mode, _token and _exchangeRate are always 0.
+    /// @dev In paymaster mode, _fundAmount is always 0.
     /// @param _userOp The user operation data.
     /// @param _validUntil The timestamp until which the user operation is valid.
     /// @param _validAfter The timestamp after which the user operation is valid.
     /// @param _exchangeRate The maximum amount of tokens allowed for the user operation. 0 if no limit.
+    /// @return bytes32 The hash that the signer should sign over.
     function getHash(
         PackedUserOperation calldata _userOp,
         uint48 _validUntil,

@@ -69,10 +69,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * exchangeRate) / 1e18;
 
         if (_mode != PostOpMode.postOpReverted) {
-            try this.attemptTransfer(token, sender, treasury, costInToken) {
-                emit UserOperationSponsored(userOpHash, sender, token, true, costInToken, exchangeRate);
-            } catch (bytes memory revertReason) {
-                revert PostOpTransferFromFailed(revertReason);
+            bool success = SafeTransferLib.trySafeTransferFrom(token, sender, treasury, costInToken);
+
+            if (!success) {
+                revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
             }
         }
     }
@@ -186,11 +186,5 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
                 userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token, _fundAmount
             )
         );
-    }
-
-    // helper function so that we can try/catch the `safeTransferFrom`, allowing us to properly handle reverts
-    function attemptTransfer(address token, address origin, address beneficiary, uint256 amount) external {
-        require(msg.sender == address(this)); // this function should be called only by this contract
-        SafeTransferLib.safeTransferFrom(token, origin, beneficiary, amount);
     }
 }

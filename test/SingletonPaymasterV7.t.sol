@@ -247,7 +247,7 @@ contract SingletonPaymasterV7Test is Test {
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
                 "AA33 reverted",
-                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterDataLengthInvalid.selector)
+                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterAndDataLengthInvalid.selector)
             )
         );
         submitUserOp(op);
@@ -315,9 +315,6 @@ contract SingletonPaymasterV7Test is Test {
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, address(0), 0, data.fundAmount);
         bytes memory sig = getSignature(hash);
 
-        console.log("real signature");
-        console.logBytes(sig);
-
         return abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
@@ -339,9 +336,6 @@ contract SingletonPaymasterV7Test is Test {
         address erc20 = address(token);
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, price, 0);
         bytes memory sig = getSignature(hash);
-
-        console.log("real signature");
-        console.logBytes(sig);
 
         return abi.encodePacked(
             data.paymasterAddress,
