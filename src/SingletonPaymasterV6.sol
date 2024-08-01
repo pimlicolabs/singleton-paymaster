@@ -74,6 +74,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             if (!success) {
                 revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
             }
+
+            emit UserOperationSponsored(userOpHash, sender, token, true, costInToken, exchangeRate);
         }
     }
 
