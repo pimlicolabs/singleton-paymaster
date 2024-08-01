@@ -67,6 +67,13 @@ contract SingletonPaymasterV7Test is Test {
         paymaster.deposit{value: 100e18}();
     }
 
+    function testDeployment() external {
+        SingletonPaymasterV7 subject = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
+        assertEq(subject.owner(), paymasterOwner);
+        assertEq(subject.treasury(), paymasterOwner);
+        assertTrue(subject.signers(paymasterOwner));
+    }
+
     function testSuccess(uint8 _mode) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
@@ -258,6 +265,18 @@ contract SingletonPaymasterV7Test is Test {
     function test_RevertWhen_NonEntryPointCaller() external {
         vm.expectRevert("Sender not EntryPoint");
         paymaster.postOp(PostOpMode.opSucceeded, "", 0, 0);
+    }
+
+    function testFundSuccess() public {
+        PackedUserOperation memory op = fillUserOp();
+
+        uint128 fundAmuont = 5 ether;
+
+        op.paymasterAndData = getSignedPaymasterData(0, fundAmuont, op);
+        op.signature = signUserOp(op, userKey);
+        submitUserOp(op);
+
+        assertEq(address(op.sender).balance, 5 ether);
     }
 
     // HELPERS //

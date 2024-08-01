@@ -69,6 +69,13 @@ contract SingletonPaymasterV6Test is Test {
         paymaster.deposit{value: 100e18}();
     }
 
+    function testDeployment() external {
+        SingletonPaymasterV6 subject = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
+        assertEq(subject.owner(), paymasterOwner);
+        assertEq(subject.treasury(), paymasterOwner);
+        assertTrue(subject.signers(paymasterOwner));
+    }
+
     function testSuccess(uint8 _mode) external {
         (bool success, bytes memory returnData) =
             address(entryPoint).call(abi.encodeWithSignature("balanceOf(address)", address(paymaster)));
@@ -106,7 +113,7 @@ contract SingletonPaymasterV6Test is Test {
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), uint8(42));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint8(42));
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA33 reverted (or OOG)"));
         submitUserOp(op);
@@ -251,6 +258,47 @@ contract SingletonPaymasterV6Test is Test {
             abi.encodePacked(address(account), address(token), uint256(5), bytes32(0), uint256(0), uint256(0)),
             0
         );
+    }
+
+    function testNoFundsSentDuringSecondPostOp() public {
+        setupERC20();
+
+        vm.startPrank(address(entryPoint));
+        paymaster.postOp(
+            PostOpMode.postOpReverted,
+            abi.encodePacked(address(user), address(token), uint128(0), bytes32(0), uint256(0), uint256(0)),
+            0
+        );
+        paymaster.postOp(
+            PostOpMode.opSucceeded,
+            abi.encodePacked(address(user), address(token), uint128(0), bytes32(0), uint256(0), uint256(0)),
+            0
+        );
+        paymaster.postOp(
+            PostOpMode.opReverted,
+            abi.encodePacked(address(user), address(token), uint128(0), bytes32(0), uint256(0), uint256(0)),
+            0
+        );
+    }
+
+    function testFundSuccess() public {
+        UserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = getSignedPaymasterData(0, 5 ether, op);
+        op.signature = signUserOp(op, userKey);
+        submitUserOp(op);
+
+        assertEq(address(op.sender).balance, 5 ether);
+    }
+
+    function test_RevertWhen_fundDistrubitionFails() public {
+        UserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = getSignedPaymasterData(0, 5000 ether, op);
+        op.signature = signUserOp(op, userKey);
+
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA33 reverted (or OOG)"));
+        submitUserOp(op);
     }
 
     // HELPERS //
