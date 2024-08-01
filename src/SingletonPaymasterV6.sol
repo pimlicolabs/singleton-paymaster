@@ -1,17 +1,17 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
-
-import {BaseSingletonPaymaster, ERC20Config} from "./base/BaseSingletonPaymaster.sol";
-import {PostOpMode} from "./interfaces/PostOpMode.sol";
-import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
+pragma solidity ^0.8.23;
 
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
+import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
 
 import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
+
+import {BaseSingletonPaymaster, ERC20Config} from "./base/BaseSingletonPaymaster.sol";
+import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
+import {PostOpMode} from "./interfaces/PostOpMode.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 

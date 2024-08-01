@@ -1,14 +1,10 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.23;
 
-import {BaseSingletonPaymaster, ERC20Config} from "./base/BaseSingletonPaymaster.sol";
-import {PostOpMode} from "./interfaces/PostOpMode.sol";
-import {IPaymasterV7} from "./interfaces/IPaymasterV7.sol";
-
-import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
+import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
 import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/core/UserOperationLib.sol";
 
 import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
@@ -16,6 +12,10 @@ import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptograph
 import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+
+import {BaseSingletonPaymaster, ERC20Config} from "./base/BaseSingletonPaymaster.sol";
+import {IPaymasterV7} from "./interfaces/IPaymasterV7.sol";
+import {PostOpMode} from "./interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
 
