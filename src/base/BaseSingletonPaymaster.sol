@@ -12,11 +12,16 @@ import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/c
 
 import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
 
-struct ERC20Config {
+struct ERC20PaymasterData {
+    /// @dev Timestamp until which the sponsorship is valid.
     uint48 validUntil;
+    /// @dev Timestamp after which the sponsorship is valid.
     uint48 validAfter;
+    /// @dev ERC20 token that the sender will pay with.
     address token;
+    /// @dev The exchange rate of the ERC20 token during sponsorship.
     uint256 exchangeRate;
+    /// @dev The paymaster signature.
     bytes signature;
 }
 
@@ -44,9 +49,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     error ExchangeRateInvalid();
 
     /// @dev When payment failed due to the TransferFrom in the PostOp failing.
+    // TODO: string instead of bytes?
     error PostOpTransferFromFailed(bytes msg);
 
     /// @dev When the paymaster fails to distribute funds to the smart account sender.
+    // TODO: string instead of bytes?
     error FundDistributionFailed(bytes reason);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -54,13 +61,15 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev Emitted when a user operation is sponsored by the paymaster.
+    // TODO: move sponsoredWithErc20 above token and rename to paymasterMode???
     event UserOperationSponsored(
         bytes32 indexed userOpHash,
         address indexed user,
         address token,
         bool sponsoredWithErc20,
         uint256 tokenAmountPaid,
-        uint256 tokenPrice
+        uint256 tokenPrice,
+        uint256 fundingAmount
     );
 
     /// @dev Emitted when a new treasury is set.
@@ -72,13 +81,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /// @dev Emitted when a signer is removed.
     event SignerRemoved(address signer);
 
-    /// @dev When the user receives funds from the paymaster.
-    event FundsDistributed(address indexed receiver, uint256 fundingAmount);
-
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
+    // TODO: move this shit to paymaster data
     uint256 internal constant POST_OP_GAS = 50_000;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -97,9 +104,9 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
 
     /// @notice Initializes the SingletonPaymaster contract with the given parameters.
     /// @param _owner The address that will be set as the owner of the contract.
+    /// @dev Signers must be enabled separately after deployment.
     constructor(address _entryPoint, address _owner) BasePaymaster(_entryPoint, _owner) {
         treasury = _owner;
-        signers[_owner] = true;
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -142,7 +149,8 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         return (mode, paymasterConfig);
     }
 
-    function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20Config memory) {
+    // TODO: natspec
+    function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20PaymasterData memory) {
         if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
         }
@@ -165,7 +173,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
             revert PaymasterSignatureLengthInvalid();
         }
 
-        ERC20Config memory config = ERC20Config({
+        ERC20PaymasterData memory config = ERC20PaymasterData({
             validUntil: validUntil,
             validAfter: validAfter,
             token: token,
@@ -176,6 +184,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         return config;
     }
 
+    // TODO: natspec
     function _parseVerifyingConfig(bytes calldata _paymasterConfig)
         internal
         pure
@@ -197,7 +206,8 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         return (validUntil, validAfter, fundAmount, signature);
     }
 
-    function _parseContext(bytes calldata _context)
+    // TODO: natspec
+    function _parsePostOpContext(bytes calldata _context)
         internal
         pure
         returns (address, address, uint256, bytes32, uint256, uint256)
@@ -236,9 +246,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         return abi.encodePacked(userOp.sender, token, price, userOpHash, uint256(0), uint256(0));
     }
 
+    // TODO: natspec
     function _distributePaymasterDeposit(address payable _recipient, uint256 _fundAmount) internal {
         try entryPoint.withdrawTo(_recipient, _fundAmount) {
-            emit FundsDistributed(_recipient, _fundAmount);
+            // todo: remove??
+            // emit FundsDistributed(_recipient, _fundAmount);
         } catch (bytes memory revertReason) {
             revert FundDistributionFailed(revertReason);
         }

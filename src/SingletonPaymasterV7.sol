@@ -13,7 +13,7 @@ import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-import {BaseSingletonPaymaster, ERC20Config} from "./base/BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster, ERC20PaymasterData} from "./base/BaseSingletonPaymaster.sol";
 import {IPaymasterV7} from "./interfaces/IPaymasterV7.sol";
 import {PostOpMode} from "./interfaces/PostOpMode.sol";
 
@@ -62,7 +62,10 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint256 _actualGasCost,
         uint256 _actualUserOpFeePerGas
     ) internal {
-        (address sender, address token, uint256 exchangeRate, bytes32 userOpHash,,) = _parseContext(_context);
+        (address sender, address token, uint256 exchangeRate, bytes32 userOpHash,,) = _parsePostOpContext(_context);
+
+        // TODO: find exchange rate that works with all tokens (check chainlink implementation)
+        // TODO: extract this into a public helper func
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * _actualUserOpFeePerGas)) * exchangeRate) / 1e18;
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
@@ -123,12 +126,12 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
     ) internal view returns (bytes memory, uint256) {
-        ERC20Config memory cfg = _parseErc20Config(_paymasterConfig);
+        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
         bytes memory context = _createContext(_userOp, cfg.token, cfg.exchangeRate, _userOpHash);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
-            getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.exchangeRate, 0)
+            getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.exchangeRate, 0) // TODO: postop
         );
         address verifyingSigner = ECDSA.recover(hash, cfg.signature);
 
@@ -157,7 +160,12 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         address _token,
         uint256 _exchangeRate,
         uint256 _fundAmount
-    ) public view returns (bytes32) {
+    )
+        // TODO: postop gas
+        public
+        view
+        returns (bytes32)
+    {
         address sender = _userOp.getSender();
         bytes32 userOpHash = keccak256(
             abi.encode(
@@ -167,6 +175,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
                 keccak256(_userOp.callData),
                 _userOp.accountGasLimits,
                 uint256(bytes32(_userOp.paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET])),
+                // TODO: should this be from zero or 20 (this about this a bit) ??? and should we make it PAYMASTER_DATA_OFFSET + 1????
                 _userOp.preVerificationGas,
                 _userOp.gasFees
             )
@@ -174,7 +183,14 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         return keccak256(
             abi.encode(
-                userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token, _fundAmount
+                userOpHash,
+                block.chainid,
+                address(this),
+                _validUntil,
+                _validAfter,
+                _exchangeRate,
+                _token,
+                _fundAmount // TODO: postop
             )
         );
     }

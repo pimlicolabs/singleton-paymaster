@@ -9,7 +9,7 @@ import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol
 import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
-import {BaseSingletonPaymaster, ERC20Config} from "./base/BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster, ERC20PaymasterData} from "./base/BaseSingletonPaymaster.sol";
 import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
 import {PostOpMode} from "./interfaces/PostOpMode.sol";
 
@@ -47,7 +47,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         _postOp(mode, context, actualGasCost);
     }
 
-    // @notice Skipped in verifying mode because postOp isn't called when context is empty.
+    // @notice Skipped in verifying mode because postOp is not called when the context is empty.
     function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost) internal {
         (
             address sender,
@@ -56,7 +56,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             bytes32 userOpHash,
             uint256 maxFeePerGas,
             uint256 maxPriorityFeePerGas
-        ) = _parseContext(_context);
+        ) = _parsePostOpContext(_context);
 
         uint256 actualUserOpFeePerGas;
         if (maxFeePerGas == maxPriorityFeePerGas) {
@@ -66,6 +66,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
         }
 
+        // TODO: move this to a helper function (and make it public) maybe in base singleton paymaster
         uint256 costInToken = ((_actualGasCost + (POST_OP_GAS * actualUserOpFeePerGas)) * exchangeRate) / 1e18;
 
         if (_mode != PostOpMode.postOpReverted) {
@@ -77,8 +78,11 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
             emit UserOperationSponsored(userOpHash, sender, token, true, costInToken, exchangeRate);
         }
+
+        // TODO: check if for postOpReverted we need to throw a revert here and double check mechanism
     }
 
+    // TODO: natspec
     function _validatePaymasterUserOp(UserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
         internal
         returns (bytes memory, uint256)
@@ -93,12 +97,12 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bytes memory context;
         uint256 validationData;
 
-        // verifying mode
+        // Verifying mode
         if (mode == 0) {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        // erc20 mode
+        // ERC20 mode
         if (mode == 1) {
             (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
@@ -135,7 +139,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         view
         returns (bytes memory, uint256)
     {
-        ERC20Config memory cfg = _parseErc20Config(_paymasterConfig);
+        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
         bytes memory context = _createContext(_userOp, cfg.token, cfg.exchangeRate, _userOpHash);
 
@@ -156,6 +160,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
     /// @notice Hashes the user operation data.
     /// @dev In verifying mode, _token and _exchangeRate are 0.
+    /// @dev In paymaster mode, _fundAmount is always 0.
     /// @param _userOp The user operation data.
     /// @param _validUntil The timestamp until which the user operation is valid.
     /// @param _validAfter The timestamp after which the user operation is valid.
@@ -168,7 +173,12 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         address _token,
         uint256 _exchangeRate,
         uint256 _fundAmount
-    ) public view returns (bytes32) {
+    )
+        // TODO postop add here
+        public
+        view
+        returns (bytes32)
+    {
         bytes32 userOpHash = keccak256(
             abi.encode(
                 _userOp.sender,
