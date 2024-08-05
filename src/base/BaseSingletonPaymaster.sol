@@ -248,18 +248,21 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         pure
         returns (address, address, uint256, uint128, bytes32, uint256, uint256)
     {
-        address sender = address(bytes20(_context[0:20]));
-        address token = address(bytes20(_context[20:40]));
-        uint256 exchangeRate = uint256(bytes32(_context[40:72]));
-        uint128 postOpGas = uint128(bytes16(_context[72:88]));
-        bytes32 userOpHash = bytes32(_context[88:120]);
         uint256 maxFeePerGas = 0;
         uint256 maxPriorityFeePerGas = 0;
-
-        if (_context.length == 168) {
-            maxFeePerGas = uint256(bytes32(_context[120:152]));
-            maxPriorityFeePerGas = uint256(bytes32(_context[152:184]));
+        {
+            // avoid stack too deep
+            if (_context.length == 168) {
+                maxPriorityFeePerGas = uint256(bytes32(_context[152:184]));
+                maxFeePerGas = uint256(bytes32(_context[120:152]));
+            }
         }
+
+        bytes32 userOpHash = bytes32(_context[88:120]);
+        uint128 postOpGas = uint128(bytes16(_context[72:88]));
+        uint256 exchangeRate = uint256(bytes32(_context[40:72]));
+        address token = address(bytes20(_context[20:40]));
+        address sender = address(bytes20(_context[0:20]));
 
         return (sender, token, exchangeRate, postOpGas, userOpHash, maxFeePerGas, maxPriorityFeePerGas);
     }
