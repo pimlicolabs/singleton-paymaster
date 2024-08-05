@@ -21,10 +21,17 @@ struct ERC20PaymasterData {
     address token;
     /// @dev The exchange rate of the ERC20 token during sponsorship.
     uint256 exchangeRate;
+    /// @dev The gas overhead of calling transferFrom during the postOp.
+    uint128 postOpGas;
     /// @dev The paymaster signature.
     bytes signature;
 }
 
+/**
+ * Helper class for creating a singleton paymaster.
+ * provides helper methods to handle logic such as
+ * Validates that the postOp is called only by the entryPoint.
+ */
 abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
@@ -48,12 +55,10 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /// @dev The token exchange rate is invalid.
     error ExchangeRateInvalid();
 
-    /// @dev When payment failed due to the TransferFrom in the PostOp failing.
-    // TODO: string instead of bytes?
-    error PostOpTransferFromFailed(bytes msg);
+    /// @dev The payment failed due to the TransferFrom in the PostOp failing.
+    error PostOpTransferFromFailed(string msg);
 
-    /// @dev When the paymaster fails to distribute funds to the smart account sender.
-    // TODO: string instead of bytes?
+    /// @dev The paymaster failed to distribute funds to the smart account sender.
     error FundDistributionFailed(bytes reason);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -61,14 +66,19 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev Emitted when a user operation is sponsored by the paymaster.
-    // TODO: move sponsoredWithErc20 above token and rename to paymasterMode???
     event UserOperationSponsored(
         bytes32 indexed userOpHash,
+        /// @param The user that requested sponsorship.
         address indexed user,
+        /// @param The paymaster mode that was used.
+        uint8 paymasterMode,
+        /// @param The token that was used during sponsorship (ERC20 mode only).
         address token,
-        bool sponsoredWithErc20,
+        /// @param The amount of token paid during sponsorship (ERC20 mode only).
         uint256 tokenAmountPaid,
-        uint256 tokenPrice,
+        /// @param The exchange rate of the token at time of sponsorship (ERC20 mode only).
+        uint256 exchangeRate,
+        /// @param The amount of funding sent to the smart account sender (Verifying mode only).
         uint256 fundingAmount
     );
 
@@ -80,13 +90,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
 
     /// @dev Emitted when a signer is removed.
     event SignerRemoved(address signer);
-
-    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*                  CONSTANTS AND IMMUTABLES                  */
-    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    // TODO: move this shit to paymaster data
-    uint256 internal constant POST_OP_GAS = 50_000;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -102,9 +105,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*                        CONSTRUCTOR                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Initializes the SingletonPaymaster contract with the given parameters.
-    /// @param _owner The address that will be set as the owner of the contract.
-    /// @dev Signers must be enabled separately after deployment.
+    /**
+     * @notice Initializes a SingletonPaymaster instance.
+     * @param _entryPoint The entryPoint address.
+     * @param _owner The initial contract owner.
+     */
     constructor(address _entryPoint, address _owner) BasePaymaster(_entryPoint, _owner) {
         treasury = _owner;
     }
@@ -132,8 +137,14 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*                      INTERNAL HELPERS                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Parses the paymasterAndData field of the user operation and returns the paymaster mode and data.
-    /// @notice _paymasterDataOffset is the start index of the data part of _paymasterAndData
+    /**
+     * @notice Parses the paymasterAndData field of the user operation and returns the paymaster mode and data.
+     * @dev _paymasterDataOffset should have value 20 for V6 and 52 for V7.
+     * @param _paymasterAndData The paymasterAndData to parse.
+     * @param _paymasterDataOffset The paymasterData offset in paymasterAndData.
+     * @return mode The paymaster mode.
+     * @return paymasterConfig The paymaster config bytes.
+     */
     function _parsePaymasterAndData(bytes calldata _paymasterAndData, uint256 _paymasterDataOffset)
         internal
         pure
@@ -149,7 +160,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         return (mode, paymasterConfig);
     }
 
-    // TODO: natspec
+    /**
+     * @notice Parses the paymaster configuration when used in ERC20 mode.
+     * @param _paymasterConfig The paymaster configuration in bytes.
+     * @return ERC20PaymasterData The parsed paymaster configuration values.
+     */
     function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20PaymasterData memory) {
         if (_paymasterConfig.length < 64) {
             revert PaymasterConfigLengthInvalid();
@@ -158,8 +173,9 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
         uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
         address token = address(bytes20(_paymasterConfig[12:32]));
-        uint256 exchangeRate = uint256(bytes32(_paymasterConfig[32:64]));
-        bytes calldata signature = _paymasterConfig[64:];
+        uint128 postOpGas = uint128(bytes16(_paymasterConfig[32:48]));
+        uint256 exchangeRate = uint256(bytes32(_paymasterConfig[48:80]));
+        bytes calldata signature = _paymasterConfig[80:];
 
         if (token == address(0)) {
             revert TokenAddressInvalid();
@@ -178,17 +194,26 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
             validAfter: validAfter,
             token: token,
             exchangeRate: exchangeRate,
+            postOpGas: postOpGas,
             signature: signature
         });
 
         return config;
     }
 
-    // TODO: natspec
+    /**
+     * @notice Parses the paymaster configuration when used in verifying mode.
+     * @param _paymasterConfig The paymaster configuration in bytes.
+     * @return validUntil The timestamp until which the sponsorship is valid.
+     * @return validAfter The timestamp after which the sponsorship is valid.
+     * @return fundAmount The amount of funds to send to the sender.
+     * @return signature The signature over the hashed sponsorship fields.
+     * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65 bytes.
+     */
     function _parseVerifyingConfig(bytes calldata _paymasterConfig)
         internal
         pure
-        returns (uint48, uint48, uint256, bytes calldata)
+        returns (uint48, uint48, uint128, bytes calldata)
     {
         if (_paymasterConfig.length < 28) {
             revert PaymasterConfigLengthInvalid();
@@ -206,53 +231,112 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         return (validUntil, validAfter, fundAmount, signature);
     }
 
-    // TODO: natspec
+    /**
+     * @notice Helper function to parse the postOp context.
+     * @dev returned values for maxFeePerGas and maxPriorityFeePerGas are always zero in V7.
+     * @param _context The encoded context.
+     * @return address The sender.
+     * @return address The ERC20 token.
+     * @return uint256 The token exchange rate.
+     * @return uint256 The postOp gas.
+     * @return bytes32 The userOperation hash.
+     * @return uint256 The maxFeePerGas (V6 only).
+     * @return uint256 The maxPriorityFeePerGas (V6 only).
+     */
     function _parsePostOpContext(bytes calldata _context)
         internal
         pure
-        returns (address, address, uint256, bytes32, uint256, uint256)
+        returns (address, address, uint256, uint128, bytes32, uint256, uint256)
     {
         address sender = address(bytes20(_context[0:20]));
         address token = address(bytes20(_context[20:40]));
-        uint256 price = uint256(bytes32(_context[40:72]));
-        bytes32 userOpHash = bytes32(_context[72:104]);
+        uint256 exchangeRate = uint256(bytes32(_context[40:72]));
+        uint128 postOpGas = uint128(bytes16(_context[72:88]));
+        bytes32 userOpHash = bytes32(_context[88:120]);
         uint256 maxFeePerGas = 0;
         uint256 maxPriorityFeePerGas = 0;
 
         if (_context.length == 168) {
-            maxFeePerGas = uint256(bytes32(_context[104:136]));
-            maxPriorityFeePerGas = uint256(bytes32(_context[136:168]));
+            maxFeePerGas = uint256(bytes32(_context[120:152]));
+            maxPriorityFeePerGas = uint256(bytes32(_context[152:184]));
         }
 
-        return (sender, token, price, userOpHash, maxFeePerGas, maxPriorityFeePerGas);
+        return (sender, token, exchangeRate, postOpGas, userOpHash, maxFeePerGas, maxPriorityFeePerGas);
     }
 
-    // @dev V6 Helper to bypass stack too deep issue.
-    function _createContext(UserOperation calldata userOp, address token, uint256 price, bytes32 userOpHash)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return
-            abi.encodePacked(userOp.sender, token, price, userOpHash, userOp.maxFeePerGas, userOp.maxPriorityFeePerGas);
+    /**
+     * @notice Helper function to encode the postOp context data for V6 userOperations.
+     * @param _userOp The userOperation.
+     * @param _exchangeRate The token exchange rate.
+     * @param _postOpGas The gas to cover the overhead of the postOp transferFrom call.
+     * @param _userOpHash The userOperation hash.
+     * @return bytes memory The encoded context.
+     */
+    function _createPostOpContext(
+        UserOperation calldata _userOp,
+        address _token,
+        uint256 _exchangeRate,
+        uint128 _postOpGas,
+        bytes32 _userOpHash
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(
+            _userOp.sender,
+            _token,
+            _exchangeRate,
+            _postOpGas,
+            _userOpHash,
+            _userOp.maxFeePerGas,
+            _userOp.maxPriorityFeePerGas
+        );
     }
 
-    // @dev V7 Helper to bypass stack too deep issue.
-    function _createContext(PackedUserOperation calldata userOp, address token, uint256 price, bytes32 userOpHash)
-        internal
-        pure
-        returns (bytes memory)
-    {
-        return abi.encodePacked(userOp.sender, token, price, userOpHash, uint256(0), uint256(0));
+    /**
+     * @notice Helper function to encode the postOp context data for V7 userOperations.
+     * @param _userOp The userOperation.
+     * @param _exchangeRate The token exchange rate.
+     * @param _postOpGas The gas to cover the overhead of the transferFrom call.
+     * @param _userOpHash The userOperation hash.
+     * @return bytes memory The encoded context.
+     */
+    function _createPostOpContext(
+        PackedUserOperation calldata _userOp,
+        address _token,
+        uint256 _exchangeRate,
+        uint128 _postOpGas,
+        bytes32 _userOpHash
+    ) internal pure returns (bytes memory) {
+        return abi.encodePacked(_userOp.sender, _token, _exchangeRate, _postOpGas, _userOpHash, uint256(0), uint256(0));
     }
 
-    // TODO: natspec
+    /**
+     * @notice Withdraws funds from the paymasters deposit and sends it to the recipient.
+     * @param _recipient The receiver of the funds.
+     * @param _fundAmount The amount to withdraw and send to _recipient.
+     * @dev
+     */
     function _distributePaymasterDeposit(address payable _recipient, uint256 _fundAmount) internal {
-        try entryPoint.withdrawTo(_recipient, _fundAmount) {
-            // todo: remove??
-            // emit FundsDistributed(_recipient, _fundAmount);
-        } catch (bytes memory revertReason) {
+        (bool success, bytes memory revertReason) =
+            address(entryPoint).call(abi.encodeWithSignature("withdrawTo(address,uint256)", _recipient, _fundAmount));
+
+        if (!success) {
             revert FundDistributionFailed(revertReason);
         }
+    }
+
+    /**
+     * @notice Gets the cost in amount of tokens.
+     * @param _actualGasCost The gas consumed by the userOperation.
+     * @param _postOpGas The gas overhead of transfering the ERC20 when making the postOp payment.
+     * @param _actualUserOpFeePerGas The actual gas cost of the userOperation.
+     * @param _exchangeRate The exchange rate of the token (in wei).
+     * @return uint256 The gasCost in token units.
+     */
+    function getCostInToken(
+        uint256 _actualGasCost,
+        uint256 _postOpGas,
+        uint256 _actualUserOpFeePerGas,
+        uint256 _exchangeRate
+    ) public pure returns (uint256) {
+        return ((_actualGasCost + (_postOpGas * _actualUserOpFeePerGas)) * _exchangeRate) / 1e18;
     }
 }

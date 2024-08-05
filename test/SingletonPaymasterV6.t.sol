@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: UNLICENSED
-pragma solidity ^0.8.26;
+pragma solidity ^0.8.0;
 
 import {Test, console2} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -41,7 +41,8 @@ contract SingletonPaymasterV6Test is Test {
 
     address payable beneficiary;
     address paymasterOwner;
-    uint256 paymasterOwnerKey;
+    address paymasterSigner;
+    uint256 paymasterSignerKey;
     address user;
     uint256 userKey;
 
@@ -58,7 +59,8 @@ contract SingletonPaymasterV6Test is Test {
         counter = new TestCounter();
 
         beneficiary = payable(makeAddr("beneficiary"));
-        (paymasterOwner, paymasterOwnerKey) = makeAddrAndKey("paymasterOperator");
+        paymasterOwner = makeAddr("paymasterOwner");
+        (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (user, userKey) = makeAddrAndKey("user");
 
         entryPoint = new EntryPoint();
@@ -67,20 +69,22 @@ contract SingletonPaymasterV6Test is Test {
 
         paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
         paymaster.deposit{value: 100e18}();
+
+        vm.prank(paymasterOwner);
+        paymaster.addSigner(paymasterSigner);
     }
 
     function testDeployment() external {
         SingletonPaymasterV6 subject = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
+        vm.prank(paymasterOwner);
+        subject.addSigner(paymasterSigner);
+
         assertEq(subject.owner(), paymasterOwner);
         assertEq(subject.treasury(), paymasterOwner);
-        assertTrue(subject.signers(paymasterOwner));
+        assertTrue(subject.signers(paymasterSigner));
     }
 
     function testSuccess(uint8 _mode) external {
-        (bool success, bytes memory returnData) =
-            address(entryPoint).call(abi.encodeWithSignature("balanceOf(address)", address(paymaster)));
-        console2.log(success);
-        console2.logBytes(returnData);
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20();
 
@@ -223,8 +227,9 @@ contract SingletonPaymasterV6Test is Test {
             uint128(50000),
             ERC20_MODE,
             uint48(0),
-            int48(0),
+            uint48(0),
             address(token),
+            uint128(0),
             uint256(0), // will throw here, price cannot be zero.
             "DummySignature"
         );
@@ -311,13 +316,15 @@ contract SingletonPaymasterV6Test is Test {
             validAfter: 0
         });
 
+        userOp.paymasterAndData = abi.encodePacked(address(paymaster), mode);
+
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp);
         } else if (mode == ERC20_MODE) {
             return getERC20ModeData(data, userOp);
         }
 
-        revert("unexpected mode");
+        revert("UNEXPECTED MODE");
     }
 
     function getVerifyingModeData(PaymasterData memory data, UserOperation memory userOp)
@@ -325,11 +332,8 @@ contract SingletonPaymasterV6Test is Test {
         view
         returns (bytes memory)
     {
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, address(0), 0, data.fundAmount);
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, data.fundAmount);
         bytes memory sig = getSignature(hash);
-
-        console2.log("real signature");
-        console2.logBytes(sig);
 
         return
             abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, data.fundAmount, sig);
@@ -340,17 +344,21 @@ contract SingletonPaymasterV6Test is Test {
         view
         returns (bytes memory)
     {
-        uint256 price = 0.0016 * 1e18;
+        uint256 exchangeRate = 3000 * 1e18;
         address erc20 = address(token);
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, price, 0);
+
+        uint128 postOpGas = 50_000;
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate);
         bytes memory sig = getSignature(hash);
 
-        return abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, erc20, price, sig);
+        return abi.encodePacked(
+            data.paymasterAddress, data.mode, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate, sig
+        );
     }
 
     function getSignature(bytes32 hash) private view returns (bytes memory) {
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterOwnerKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterSignerKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
