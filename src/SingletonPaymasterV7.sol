@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {Test, console} from "forge-std/Test.sol";
-
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
@@ -237,20 +235,29 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint256 _exchangeRate,
         uint128 _fundAmount
     ) internal view returns (bytes32) {
-        address sender = _userOp.getSender();
-        bytes32 userOpHash = keccak256(
-            abi.encode(
-                sender,
-                _userOp.nonce,
-                keccak256(_userOp.initCode),
-                keccak256(_userOp.callData),
-                _userOp.accountGasLimits,
-                // hashing over paymaster gasLimits + paymaster mode.
-                uint256(bytes32(_userOp.paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET + 1])),
-                _userOp.preVerificationGas,
-                _userOp.gasFees
-            )
-        );
+        bytes32 userOpHash;
+        {
+            bytes memory blob;
+            {
+                blob = abi.encode(
+                    _userOp.getSender(),
+                    _userOp.nonce,
+                    keccak256(_userOp.initCode),
+                    keccak256(_userOp.callData),
+                    _userOp.accountGasLimits
+                );
+            }
+            {
+                blob = abi.encode(
+                    blob,
+                    // hashing over paymaster gasLimits + paymaster mode.
+                    keccak256(_userOp.paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET + 1]),
+                    _userOp.preVerificationGas,
+                    _userOp.gasFees
+                );
+            }
+            userOpHash = keccak256(blob);
+        }
 
         return keccak256(
             abi.encode(

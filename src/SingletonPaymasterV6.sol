@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {Test, console} from "forge-std/Test.sol";
-
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
@@ -248,37 +246,32 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 _exchangeRate,
         uint128 _fundAmount
     ) internal view returns (bytes32) {
-        bytes32 userOpHash = keccak256(
-            abi.encode(
-                _userOp.sender,
-                _userOp.nonce,
-                keccak256(_userOp.initCode),
-                keccak256(_userOp.callData),
-                _userOp.callGasLimit,
-                _userOp.verificationGasLimit,
-                _userOp.preVerificationGas,
-                // hashing over paymaster mode.
-                uint256(bytes32(_userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 1])),
-                _userOp.maxFeePerGas,
-                _userOp.maxPriorityFeePerGas
-            )
-        );
-
-        console.logBytes32(
-            keccak256(
-                abi.encode(
-                    userOpHash,
-                    block.chainid,
-                    address(this),
-                    _validUntil,
-                    _validAfter,
-                    _exchangeRate,
-                    _token,
-                    _fundAmount,
-                    _postOpGas
-                )
-            )
-        );
+        bytes32 userOpHash;
+        {
+            // inner scopes needed to avoid stack too deep error
+            bytes memory blob;
+            {
+                blob = abi.encode(
+                    _userOp.sender,
+                    _userOp.nonce,
+                    keccak256(_userOp.initCode),
+                    keccak256(_userOp.callData),
+                    _userOp.callGasLimit,
+                    _userOp.verificationGasLimit,
+                    _userOp.preVerificationGas
+                );
+            }
+            {
+                blob = abi.encode(
+                    blob,
+                    // hashing over paymaster mode.
+                    uint8(bytes1(_userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 1])),
+                    _userOp.maxFeePerGas,
+                    _userOp.maxPriorityFeePerGas
+                );
+            }
+            userOpHash = keccak256(blob);
+        }
 
         return keccak256(
             abi.encode(
