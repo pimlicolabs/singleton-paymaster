@@ -22,11 +22,11 @@ using UserOperationLib for PackedUserOperation;
 /// @title SingletonPaymasterV7
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV7.sol)
 /// @author Using Solady (https://github.com/vectorized/solady)
-/// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC20.
-/// In ERC20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
+/// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC-20.
+/// In ERC-20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
 /// In Verifying mode, the paymaster sponsors a UserOperation and deducts prepaid balance from the user's Pimlico balance.
 /// In Verifying mode, the user also has the option to fund their smart account using their Pimlico balance.
-/// @dev Inherits from BaseERC20Paymaster.
+/// @dev Inherits from BaseSingletonPaymaster.
 /// @custom:security-contact security@pimlico.io
 contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -66,9 +66,9 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     }
 
     /**
-     * @notice Handles ERC20 token payment.
-     * @dev PostOp is skipped in verifying mode because postOp isn't called when context is empty.
-     * @param _context The encoded ERC20 paymaster context.
+     * @notice Handles ERC-20 token payment.
+     * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
+     * @param _context The encoded ERC-20 paymaster context.
      * @param _actualGasCost The totla gas cost (in wei) of this userOperation.
      * @param _actualUserOpFeePerGas The actual gas price of the userOperation.
      */
@@ -81,7 +81,6 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         (address sender, address token, uint256 exchangeRate, uint256 postOpGas, bytes32 userOpHash,,) =
             _parsePostOpContext(_context);
 
-        // TODO: find exchange rate that works with all tokens (check chainlink implementation)
         uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
@@ -92,7 +91,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @notice Internal helper to parse and validate the userOperation's paymasterAndData.
      * @param _userOp The userOperation.
      * @param _userOpHash The userOperation hash.
-     * @return (context, validationData) The validation data to return to the EntryPoint.
+     * @return (context, validationData) The context and validation data to return to the EntryPoint.
      */
     function _validatePaymasterUserOp(PackedUserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
         internal
@@ -140,7 +139,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        // if user wants to fund their smart account with credits from the Pimlico dashboard.
+        // if user wants to fund their smart account with their Pimlico credits.
         if (fundAmount > 0) {
             _distributePaymasterDeposit(payable(_userOp.sender), fundAmount);
         }
@@ -150,7 +149,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     }
 
     /**
-     * @notice Internal helper to validate the paymasterAndData when used in ERC20 mode.
+     * @notice Internal helper to validate the paymasterAndData when used in ERC-20 mode.
      * @param _userOp The userOperation.
      * @param _paymasterConfig The encoded paymaster config taken from paymasterAndData.
      * @param _userOpHash The userOperation hash.
@@ -180,7 +179,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Hashses the userOperation data when used in ERC20 mode.
+     * @notice Hashses the userOperation data when used in ERC-20 mode.
      * @param _userOp The user operation data.
      * @param _validUntil The timestamp until which the user operation is valid.
      * @param _validAfter The timestamp after which the user operation is valid.
@@ -217,7 +216,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     }
 
     /**
-     * @notice Hashes the user operation data.
+     * @notice Internal helper that hashes the user operation data.
      * @dev In verifying mode, _token, _exchangeRate, and _postOpGas are always 0.
      * @dev In paymaster mode, _fundAmount is always 0.
      * @param _userOp The user operation data.

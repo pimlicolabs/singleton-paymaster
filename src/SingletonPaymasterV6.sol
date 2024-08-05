@@ -18,11 +18,11 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 /// @title SingletonPaymasterV6
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV6.sol)
 /// @author Using Solady (https://github.com/vectorized/solady)
-/// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC20.
-/// In ERC20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
-/// In Verifying mode, the paymaster sponsors a UserOperation and deducts prepaid balance from the user's Pimlico balance.
+/// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC-20.
+/// In ERC-20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
+/// In Verifying mode, the paymaster sponsors a UserOperation from the user's Pimlico balance.
 /// In Verifying mode, the user also has the option to fund their smart account using their Pimlico balance.
-/// @dev Inherits from BaseERC20Paymaster.
+/// @dev Inherits from BaseSingletonPaymaster.
 /// @custom:security-contact security@pimlico.io
 contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -38,7 +38,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     constructor(address _entryPoint, address _owner) BaseSingletonPaymaster(_entryPoint, _owner) {}
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
-    /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
+    /*        ENTRYPOINT V0.6 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @inheritdoc IPaymasterV6
@@ -58,11 +58,11 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     }
 
     /**
-     * @notice Handles ERC20 token payment.
-     * @dev PostOp is skipped in verifying mode because postOp isn't called when context is empty.
+     * @notice Handles ERC-20 token payment.
+     * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
      * @param _mode The postOp mode.
-     * @param _context The encoded ERC20 paymaster context.
-     * @param _actualGasCost The totla gas cost (in wei) of this userOperation.
+     * @param _context The encoded ERC-20 paymaster context.
+     * @param _actualGasCost The total gas cost (in wei) of this userOperation.
      */
     function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost) internal {
         (
@@ -77,7 +77,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
         uint256 actualUserOpFeePerGas;
         if (maxFeePerGas == maxPriorityFeePerGas) {
-            // chains that only support legacy (pre eip-1559 transactions)
+            // chains that only support legacy (pre EIP-1559 transactions)
             actualUserOpFeePerGas = maxFeePerGas;
         } else {
             actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
@@ -100,7 +100,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @notice Internal helper to parse and validate the userOperation's paymasterAndData.
      * @param _userOp The userOperation.
      * @param _userOpHash The userOperation hash.
-     * @return (context, validationData) The validation data to return to the EntryPoint.
+     * @return (context, validationData) The context and validation data to return to the EntryPoint.
      */
     function _validatePaymasterUserOp(UserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
         internal
@@ -121,7 +121,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        // ERC20 mode
+        // ERC-20 mode
         if (mode == 1) {
             (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
@@ -150,7 +150,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bool isSignatureValid = signers[verifyingSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        // if user wants to fund their smart account with credits from the Pimlico dashboard.
+        // if user wants to fund their smart account with their Pimlico credits.
         if (fundAmount > 0) {
             _distributePaymasterDeposit(payable(_userOp.sender), fundAmount);
         }
@@ -160,7 +160,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     }
 
     /**
-     * @notice Internal helper to validate the paymasterAndData when used in ERC20 mode.
+     * @notice Internal helper to validate the paymasterAndData when used in ERC-20 mode.
      * @param _userOp The userOperation.
      * @param _paymasterConfig The encoded paymaster config taken from paymasterAndData.
      * @param _userOpHash The userOperation hash.
@@ -191,7 +191,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Hashses the userOperation data when used in ERC20 mode.
+     * @notice Hashses the userOperation data when used in ERC-20 mode.
      * @param _userOp The user operation data.
      * @param _validUntil The timestamp until which the user operation is valid.
      * @param _validAfter The timestamp after which the user operation is valid.
@@ -228,7 +228,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     }
 
     /**
-     * @notice Hashes the user operation data.
+     * @notice Internal helper that hashes the user operation data.
      * @dev In verifying mode, _token, _exchangeRate, and _postOpGas are always 0.
      * @dev In paymaster mode, _fundAmount is always 0.
      * @param _userOp The user operation data.

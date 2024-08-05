@@ -17,20 +17,20 @@ struct ERC20PaymasterData {
     uint48 validUntil;
     /// @dev Timestamp after which the sponsorship is valid.
     uint48 validAfter;
-    /// @dev ERC20 token that the sender will pay with.
-    address token;
-    /// @dev The exchange rate of the ERC20 token during sponsorship.
-    uint256 exchangeRate;
     /// @dev The gas overhead of calling transferFrom during the postOp.
     uint128 postOpGas;
+    /// @dev ERC-20 token that the sender will pay with.
+    address token;
+    /// @dev The exchange rate of the ERC-20 token during sponsorship.
+    uint256 exchangeRate;
     /// @dev The paymaster signature.
     bytes signature;
 }
 
 /**
  * Helper class for creating a singleton paymaster.
- * provides helper methods to handle logic such as
- * Validates that the postOp is called only by the entryPoint.
+ * provides helper methods to handle logic such as treasury/signer management as well as
+ * parsing and validation the userOperation's paymasterAndData in both ERC-20 and Verifying modes.
  */
 abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -40,7 +40,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /// @dev The paymaster data length is invalid.
     error PaymasterAndDataLengthInvalid();
 
-    /// @dev The paymaster data mode is invalid. The mode should be 0 and 1.
+    /// @dev The paymaster data mode is invalid. The mode should be 0 or 1.
     error PaymasterModeInvalid();
 
     /// @dev The paymaster data length is invalid for the selected mode.
@@ -55,10 +55,10 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /// @dev The token exchange rate is invalid.
     error ExchangeRateInvalid();
 
-    /// @dev The payment failed due to the TransferFrom in the PostOp failing.
+    /// @dev The payment failed due to the TransferFrom call in the PostOp reverting.
     error PostOpTransferFromFailed(string msg);
 
-    /// @dev The paymaster failed to distribute funds to the smart account sender.
+    /// @dev The paymaster failed to distribute funds to the user (sender).
     error FundDistributionFailed(bytes reason);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -72,11 +72,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         address indexed user,
         /// @param The paymaster mode that was used.
         uint8 paymasterMode,
-        /// @param The token that was used during sponsorship (ERC20 mode only).
+        /// @param The token that was used during sponsorship (ERC-20 mode only).
         address token,
-        /// @param The amount of token paid during sponsorship (ERC20 mode only).
+        /// @param The amount of token paid during sponsorship (ERC-20 mode only).
         uint256 tokenAmountPaid,
-        /// @param The exchange rate of the token at time of sponsorship (ERC20 mode only).
+        /// @param The exchange rate of the token at time of sponsorship (ERC-20 mode only).
         uint256 exchangeRate,
         /// @param The amount of funding sent to the smart account sender (Verifying mode only).
         uint256 fundingAmount
@@ -96,9 +96,10 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @dev Mapping of valid signers.
+    /// @notice No signers are initialized at the time of contract creation.
     mapping(address account => bool isValidSigner) public signers;
 
-    /// @dev Address where all ERC20 tokens will be sent to.
+    /// @dev Address where all ERC-20 tokens will be sent to.
     address public treasury;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -138,7 +139,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Parses the paymasterAndData field of the user operation and returns the paymaster mode and data.
+     * @notice Parses the userOperation's paymasterAndData field and returns the paymaster mode and encoded paymaster configuration bytes.
      * @dev _paymasterDataOffset should have value 20 for V6 and 52 for V7.
      * @param _paymasterAndData The paymasterAndData to parse.
      * @param _paymasterDataOffset The paymasterData offset in paymasterAndData.
@@ -161,7 +162,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     }
 
     /**
-     * @notice Parses the paymaster configuration when used in ERC20 mode.
+     * @notice Parses the paymaster configuration when used in ERC-20 mode.
      * @param _paymasterConfig The paymaster configuration in bytes.
      * @return ERC20PaymasterData The parsed paymaster configuration values.
      */
@@ -236,7 +237,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
      * @dev returned values for maxFeePerGas and maxPriorityFeePerGas are always zero in V7.
      * @param _context The encoded context.
      * @return address The sender.
-     * @return address The ERC20 token.
+     * @return address The ERC-20 token.
      * @return uint256 The token exchange rate.
      * @return uint256 The postOp gas.
      * @return bytes32 The userOperation hash.
@@ -250,8 +251,9 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     {
         uint256 maxFeePerGas = 0;
         uint256 maxPriorityFeePerGas = 0;
+
+        // parsing bytes from right to left to avoid stack too deep
         {
-            // avoid stack too deep
             if (_context.length == 168) {
                 maxPriorityFeePerGas = uint256(bytes32(_context[152:184]));
                 maxFeePerGas = uint256(bytes32(_context[120:152]));
@@ -315,7 +317,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
      * @notice Withdraws funds from the paymasters deposit and sends it to the recipient.
      * @param _recipient The receiver of the funds.
      * @param _fundAmount The amount to withdraw and send to _recipient.
-     * @dev
+     * @dev The function reverts if the withdrawTo call fails.
      */
     function _distributePaymasterDeposit(address payable _recipient, uint256 _fundAmount) internal {
         (bool success, bytes memory revertReason) =
@@ -329,7 +331,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /**
      * @notice Gets the cost in amount of tokens.
      * @param _actualGasCost The gas consumed by the userOperation.
-     * @param _postOpGas The gas overhead of transfering the ERC20 when making the postOp payment.
+     * @param _postOpGas The gas overhead of transfering the ERC-20 when making the postOp payment.
      * @param _actualUserOpFeePerGas The actual gas cost of the userOperation.
      * @param _exchangeRate The exchange rate of the token (in wei).
      * @return uint256 The gasCost in token units.

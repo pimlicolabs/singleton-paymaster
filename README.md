@@ -21,7 +21,7 @@ Verifying Mode:
 - The user has the option to fund their smart account with their Pimlico balance.
     - The paymaster will fund the user (sender) by calling the EntryPoint's `withdrawTo(address,uint)` method.
 
-**Note:** In ERC-20 mode, the paymaster does not take a prefund during the `validatePaymasterUserOp` phase. This means that a malicious user can bypass the payment phase in the `postOp` call. If a user does this, the userOperation will be funded from their Pimlico balance.
+**Note:** In ERC-20 mode, the paymaster does not take a prefund during the `validatePaymasterUserOp` phase. This means that a malicious user can bypass the payment in the `postOp` call. If a user does this, the userOperation will be funded from their Pimlico balance.
 
 ## Core Contracts
 
