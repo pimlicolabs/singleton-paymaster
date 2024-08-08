@@ -27,7 +27,6 @@ struct PaymasterData {
     uint128 preVerificationGas;
     uint128 postOpGas;
     uint8 mode;
-    uint128 fundAmount;
     uint48 validUntil;
     uint48 validAfter;
 }
@@ -88,7 +87,7 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(mode, 0, op);
+        op.paymasterAndData = getSignedPaymasterData(mode, op);
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
     }
@@ -118,7 +117,7 @@ contract SingletonPaymasterV7Test is Test {
         setupERC20();
 
         if (mode == VERIFYING_MODE) {
-            vm.assume(_randomBytes.length < 24);
+            vm.assume(_randomBytes.length < 12);
         }
 
         if (mode == ERC20_MODE) {
@@ -265,7 +264,7 @@ contract SingletonPaymasterV7Test is Test {
     function test_PostOpTransferFromFailed() external {
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(1, 0, op);
+        op.paymasterAndData = getSignedPaymasterData(1, op);
 
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
@@ -276,21 +275,9 @@ contract SingletonPaymasterV7Test is Test {
         paymaster.postOp(PostOpMode.opSucceeded, "", 0, 0);
     }
 
-    function testFundSuccess() public {
-        PackedUserOperation memory op = fillUserOp();
-
-        uint128 fundAmt = 5 ether;
-
-        op.paymasterAndData = getSignedPaymasterData(0, fundAmt, op);
-        op.signature = signUserOp(op, userKey);
-        submitUserOp(op);
-
-        assertEq(address(op.sender).balance, 5 ether);
-    }
-
     // HELPERS //
 
-    function getSignedPaymasterData(uint8 mode, uint128 fundAmount, PackedUserOperation memory userOp)
+    function getSignedPaymasterData(uint8 mode, PackedUserOperation memory userOp)
         private
         view
         returns (bytes memory)
@@ -300,7 +287,6 @@ contract SingletonPaymasterV7Test is Test {
             preVerificationGas: 100_000,
             postOpGas: 50_000,
             mode: mode,
-            fundAmount: fundAmount,
             validUntil: 0,
             validAfter: 0
         });
@@ -321,7 +307,7 @@ contract SingletonPaymasterV7Test is Test {
         view
         returns (bytes memory)
     {
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, data.fundAmount);
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter);
         bytes memory sig = getSignature(hash);
 
         return abi.encodePacked(
@@ -331,7 +317,6 @@ contract SingletonPaymasterV7Test is Test {
             data.mode,
             data.validUntil,
             data.validAfter,
-            data.fundAmount,
             sig
         );
     }
