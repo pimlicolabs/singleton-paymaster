@@ -8,10 +8,29 @@ import {PostOpMode} from "../interfaces/PostOpMode.sol";
 
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/core/UserOperationLib.sol";
 
 import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
+import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
+
+/// @notice Signed withdraw request allowing users to withdraw funds from the paymaster's EntryPoint deposit.
+struct WithdrawRequest {
+    /// @dev The receiver of the funds.
+    address recipient;
+    /// @dev Unique nonce used to prevent replays.
+    uint256 nonce;
+    /// @dev The requested amount to withdraw.
+    uint256 amount;
+    /// @dev The maximum expiry the withdraw request remains valid for.
+    uint48 expiry;
+    /// @dev The signature associated with this withdraw request.
+    bytes signature;
+}
+
+/// @notice Helper struct to hold all configs needed in ERC-20 mode.
 struct ERC20PaymasterData {
     /// @dev Timestamp until which the sponsorship is valid.
     uint48 validUntil;
@@ -27,43 +46,64 @@ struct ERC20PaymasterData {
     bytes signature;
 }
 
-/**
- * Helper class for creating a singleton paymaster.
- * provides helper methods to handle logic such as treasury/signer management as well as
- * parsing and validation the userOperation's paymasterAndData in both ERC-20 and Verifying modes.
- */
+/// @title BaseSingletonPaymaster
+/// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/base/BaseSingletonPaymaster.sol)
+/// @notice Helper class for creating a singleton paymaster.
+/// @dev Inherits from BasePaymaster.
 abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @dev The paymaster data length is invalid.
+    /// @notice The paymaster data length is invalid.
     error PaymasterAndDataLengthInvalid();
 
-    /// @dev The paymaster data mode is invalid. The mode should be 0 or 1.
+    /// @notice The paymaster data mode is invalid. The mode should be 0 or 1.
     error PaymasterModeInvalid();
 
-    /// @dev The paymaster data length is invalid for the selected mode.
+    /// @notice The paymaster data length is invalid for the selected mode.
     error PaymasterConfigLengthInvalid();
 
-    /// @dev The paymaster signature length is invalid.
+    /// @notice The paymaster signature length is invalid.
     error PaymasterSignatureLengthInvalid();
 
-    /// @dev The token is invalid.
+    /// @notice The token is invalid.
     error TokenAddressInvalid();
 
-    /// @dev The token exchange rate is invalid.
+    /// @notice The token exchange rate is invalid.
     error ExchangeRateInvalid();
 
-    /// @dev The payment failed due to the TransferFrom call in the PostOp reverting.
+    /// @notice The payment failed due to the TransferFrom call in the PostOp reverting.
+    /// @dev We need to throw with params due to this bug in EntryPoint v0.6: https://github.com/eth-infinitism/account-abstraction/pull/293
     error PostOpTransferFromFailed(string msg);
 
-    /// @dev The paymaster failed to distribute funds to the user (sender).
-    error FundDistributionFailed(bytes reason);
+    /// @notice The withdraw request's expiry has been reached.
+    error WithdrawRequestExpired();
+
+    /// @notice The withdraw request was initiated with a invalid nonce.
+    error WithdrawSignatureInvalid();
+
+    /// @notice The withdraw request was initiated with a invalid nonce.
+    /// @param nonce The nonce used in the withdraw request.
+    error WithdrawNonceInvalid(uint256 nonce);
+
+    /// @notice Thrown if is larger than paymaster.getDeposit() - WithdrawRequest.amount < paymasterMinBalance.
+    /// @param requestedAmount The requested withdraw amount.
+    /// @param maxAllowed      The current max allowed withdraw.
+    error WithdrawTooLarge(uint256 requestedAmount, uint256 maxAllowed);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /// @notice Emitted when a withdraw request was successfully fulfilled.
+    event WithdrawRequestFulfilled(
+        address indexed receiver,
+        /// @param The value withdrawn by the user.
+        uint256 value,
+        /// @param The nonce used to fulfil this withdraw request.
+        uint256 nonce
+    );
 
     /// @dev Emitted when a user operation is sponsored by the paymaster.
     event UserOperationSponsored(
@@ -77,30 +117,34 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         /// @param The amount of token paid during sponsorship (ERC-20 mode only).
         uint256 tokenAmountPaid,
         /// @param The exchange rate of the token at time of sponsorship (ERC-20 mode only).
-        uint256 exchangeRate,
-        /// @param The amount of funding sent to the smart account sender (Verifying mode only).
-        uint256 fundingAmount
+        uint256 exchangeRate
     );
 
-    /// @dev Emitted when a new treasury is set.
+    /// @notice Emitted when a new treasury is set.
     event TreasuryUpdated(address oldTreasury, address newTreasury);
 
-    /// @dev Emitted when a signer is added.
+    /// @notice Emitted when a signer is added.
     event SignerAdded(address signer);
 
-    /// @dev Emitted when a signer is removed.
+    /// @notice Emitted when a signer is removed.
     event SignerRemoved(address signer);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @dev Mapping of valid signers.
-    /// @notice No signers are initialized at the time of contract creation.
+    /// @notice Mapping of valid signers.
+    /// @dev No signers are initialized at the time of contract creation.
     mapping(address account => bool isValidSigner) public signers;
 
-    /// @dev Address where all ERC-20 tokens will be sent to.
+    /// @notice Address where all ERC-20 tokens will be sent to.
     address public treasury;
+
+    /// @notice Ensures the paymaster maintains a minimum balance to ensure continued operation.
+    uint256 public paymasterMinBalance;
+
+    /// @notice Mappings keeping track of already used nonces per user to prevent replays of withdraw requests.
+    mapping(address user => mapping(uint256 nonce => bool used)) public nonceUsed;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
@@ -132,6 +176,63 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
     function setTreasury(address _treasury) public onlyOwner {
         emit TreasuryUpdated(treasury, _treasury);
         treasury = _treasury;
+    }
+
+    function setPaymasterMinBalance(uint256 _minBalance) public onlyOwner {
+        paymasterMinBalance = _minBalance;
+    }
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                     EXTERNAL FUNCTIONS                     */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /**
+     * @notice Fulfills a withdraw request only if it passes validation and has a valid signature.
+     */
+    function requestWithdraw(WithdrawRequest calldata withdrawRequest) external {
+        if (block.timestamp > withdrawRequest.expiry) {
+            revert WithdrawRequestExpired();
+        }
+
+        // check signature
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getWithdrawHash(withdrawRequest));
+        address recoveredSigner = ECDSA.recover(hash, withdrawRequest.signature);
+
+        if (!signers[recoveredSigner]) {
+            revert WithdrawSignatureInvalid();
+        }
+
+        // check withdraw request params
+        if (nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce]) {
+            revert WithdrawNonceInvalid(withdrawRequest.nonce);
+        }
+
+        uint256 maxAllowedWithdraw = getDeposit() - paymasterMinBalance;
+        if (withdrawRequest.amount > maxAllowedWithdraw) {
+            revert WithdrawTooLarge(withdrawRequest.amount, maxAllowedWithdraw);
+        }
+
+        nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce] = true;
+        entryPoint.withdrawTo(payable(withdrawRequest.recipient), withdrawRequest.amount);
+        emit WithdrawRequestFulfilled(withdrawRequest.recipient, withdrawRequest.amount, withdrawRequest.nonce);
+    }
+
+    /**
+     * @notice Allows the caller to withdraw funds if a valid signature is passed.
+     * @param withdrawRequest The withdraw request to get the hash of.
+     * @return The hashed withdraw request.
+     */
+    function getWithdrawHash(WithdrawRequest calldata withdrawRequest) public view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                address(this),
+                block.chainid,
+                withdrawRequest.recipient,
+                withdrawRequest.amount,
+                withdrawRequest.nonce,
+                withdrawRequest.expiry
+            )
+        );
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -207,29 +308,27 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
      * @param _paymasterConfig The paymaster configuration in bytes.
      * @return validUntil The timestamp until which the sponsorship is valid.
      * @return validAfter The timestamp after which the sponsorship is valid.
-     * @return fundAmount The amount of funds to send to the sender.
      * @return signature The signature over the hashed sponsorship fields.
      * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65 bytes.
      */
     function _parseVerifyingConfig(bytes calldata _paymasterConfig)
         internal
         pure
-        returns (uint48, uint48, uint128, bytes calldata)
+        returns (uint48, uint48, bytes calldata)
     {
-        if (_paymasterConfig.length < 28) {
+        if (_paymasterConfig.length < 12) {
             revert PaymasterConfigLengthInvalid();
         }
 
         uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
         uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
-        uint128 fundAmount = uint128(bytes16(_paymasterConfig[12:28]));
-        bytes calldata signature = _paymasterConfig[28:];
+        bytes calldata signature = _paymasterConfig[12:];
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();
         }
 
-        return (validUntil, validAfter, fundAmount, signature);
+        return (validUntil, validAfter, signature);
     }
 
     /**
@@ -254,7 +353,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
 
         // parsing bytes from right to left to avoid stack too deep
         {
-            if (_context.length == 168) {
+            if (_context.length == 184) {
                 maxPriorityFeePerGas = uint256(bytes32(_context[152:184]));
                 maxFeePerGas = uint256(bytes32(_context[120:152]));
             }
@@ -311,21 +410,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster {
         bytes32 _userOpHash
     ) internal pure returns (bytes memory) {
         return abi.encodePacked(_userOp.sender, _token, _exchangeRate, _postOpGas, _userOpHash, uint256(0), uint256(0));
-    }
-
-    /**
-     * @notice Withdraws funds from the paymasters deposit and sends it to the recipient.
-     * @param _recipient The receiver of the funds.
-     * @param _fundAmount The amount to withdraw and send to _recipient.
-     * @dev The function reverts if the withdrawTo call fails.
-     */
-    function _distributePaymasterDeposit(address payable _recipient, uint256 _fundAmount) internal {
-        (bool success, bytes memory revertReason) =
-            address(entryPoint).call(abi.encodeWithSignature("withdrawTo(address,uint256)", _recipient, _fundAmount));
-
-        if (!success) {
-            revert FundDistributionFailed(revertReason);
-        }
     }
 
     /**

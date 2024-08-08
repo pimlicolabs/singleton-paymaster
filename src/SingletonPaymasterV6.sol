@@ -92,7 +92,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
                 revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
             }
 
-            emit UserOperationSponsored(userOpHash, sender, 1, token, costInToken, exchangeRate, 0);
+            emit UserOperationSponsored(userOpHash, sender, 1, token, costInToken, exchangeRate);
         }
     }
 
@@ -141,21 +141,15 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
     ) internal returns (bytes memory, uint256) {
-        (uint48 validUntil, uint48 validAfter, uint128 fundAmount, bytes calldata signature) =
-            _parseVerifyingConfig(_paymasterConfig);
+        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter, fundAmount));
-        address verifyingSigner = ECDSA.recover(hash, signature);
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter));
+        address recoveredSigner = ECDSA.recover(hash, signature);
 
-        bool isSignatureValid = signers[verifyingSigner];
+        bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        // if user wants to fund their smart account with their Pimlico credits.
-        if (fundAmount > 0) {
-            _distributePaymasterDeposit(payable(_userOp.sender), fundAmount);
-        }
-
-        emit UserOperationSponsored(_userOpHash, _userOp.sender, 0, address(0), 0, 0, fundAmount);
+        emit UserOperationSponsored(_userOpHash, _userOp.sender, 0, address(0), 0, 0);
         return ("", validationData);
     }
 
@@ -178,9 +172,9 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
             getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.postOpGas, cfg.exchangeRate)
         );
-        address verifyingSigner = ECDSA.recover(hash, cfg.signature);
+        address recoveredSigner = ECDSA.recover(hash, cfg.signature);
 
-        bool isSignatureValid = signers[verifyingSigner];
+        bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
 
         return (context, validationData);
@@ -208,7 +202,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint128 _postOpGas,
         uint256 _exchangeRate
     ) public view returns (bytes32) {
-        return _getHash(_userOp, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate, 0);
+        return _getHash(_userOp, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate);
     }
 
     /**
@@ -216,15 +210,14 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @param _userOp The user operation data.
      * @param _validUntil The timestamp until which the user operation is valid.
      * @param _validAfter The timestamp after which the user operation is valid.
-     * @param _fundAmount The amount of funds to send to the sender.
      * @return bytes32 The hash that the signer should sign over.
      */
-    function getHash(UserOperation calldata _userOp, uint48 _validUntil, uint48 _validAfter, uint128 _fundAmount)
+    function getHash(UserOperation calldata _userOp, uint48 _validUntil, uint48 _validAfter)
         public
         view
         returns (bytes32)
     {
-        return _getHash(_userOp, _validUntil, _validAfter, address(0), 0, 0, _fundAmount);
+        return _getHash(_userOp, _validUntil, _validAfter, address(0), 0, 0);
     }
 
     /**
@@ -243,12 +236,11 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 _validAfter,
         address _token,
         uint128 _postOpGas,
-        uint256 _exchangeRate,
-        uint128 _fundAmount
+        uint256 _exchangeRate
     ) internal view returns (bytes32) {
         bytes32 userOpHash;
         {
-            // inner scopes needed to avoid stack too deep error
+            // inner scopes needed to avoid stack too deep error.
             bytes memory blob;
             {
                 blob = abi.encode(
@@ -275,15 +267,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
         return keccak256(
             abi.encode(
-                userOpHash,
-                block.chainid,
-                address(this),
-                _validUntil,
-                _validAfter,
-                _exchangeRate,
-                _token,
-                _fundAmount,
-                _postOpGas
+                userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token, _postOpGas
             )
         );
     }

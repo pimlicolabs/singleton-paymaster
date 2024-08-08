@@ -29,7 +29,6 @@ struct SignatureData {
 struct PaymasterData {
     address paymasterAddress;
     uint8 mode;
-    uint128 fundAmount;
     uint48 validUntil;
     uint48 validAfter;
 }
@@ -90,7 +89,7 @@ contract SingletonPaymasterV6Test is Test {
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(mode, 0, op);
+        op.paymasterAndData = getSignedPaymasterData(mode, op);
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
     }
@@ -107,7 +106,7 @@ contract SingletonPaymasterV6Test is Test {
 
         op.maxPriorityFeePerGas = 5;
         op.maxFeePerGas = 5;
-        op.paymasterAndData = getSignedPaymasterData(mode, 0, op);
+        op.paymasterAndData = getSignedPaymasterData(mode, op);
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
     }
@@ -186,7 +185,7 @@ contract SingletonPaymasterV6Test is Test {
     function test_PostOpTransferFromFailed() external {
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(1, 0, op);
+        op.paymasterAndData = getSignedPaymasterData(1, op);
 
         op.signature = signUserOp(op, userKey);
         submitUserOp(op);
@@ -281,40 +280,11 @@ contract SingletonPaymasterV6Test is Test {
         );
     }
 
-    function testFundSuccess() public {
-        UserOperation memory op = fillUserOp();
-
-        op.paymasterAndData = getSignedPaymasterData(0, 5 ether, op);
-        op.signature = signUserOp(op, userKey);
-        submitUserOp(op);
-
-        assertEq(address(op.sender).balance, 5 ether);
-    }
-
-    function test_RevertWhen_fundDistrubitionFails() public {
-        UserOperation memory op = fillUserOp();
-
-        op.paymasterAndData = getSignedPaymasterData(0, 5000 ether, op);
-        op.signature = signUserOp(op, userKey);
-
-        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA33 reverted (or OOG)"));
-        submitUserOp(op);
-    }
-
     // HELPERS //
 
-    function getSignedPaymasterData(uint8 mode, uint128 fundAmount, UserOperation memory userOp)
-        private
-        view
-        returns (bytes memory)
-    {
-        PaymasterData memory data = PaymasterData({
-            paymasterAddress: address(paymaster),
-            mode: mode,
-            fundAmount: fundAmount,
-            validUntil: 0,
-            validAfter: 0
-        });
+    function getSignedPaymasterData(uint8 mode, UserOperation memory userOp) private view returns (bytes memory) {
+        PaymasterData memory data =
+            PaymasterData({paymasterAddress: address(paymaster), mode: mode, validUntil: 0, validAfter: 0});
 
         userOp.paymasterAndData = abi.encodePacked(address(paymaster), mode);
 
@@ -332,11 +302,10 @@ contract SingletonPaymasterV6Test is Test {
         view
         returns (bytes memory)
     {
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, data.fundAmount);
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter);
         bytes memory sig = getSignature(hash);
 
-        return
-            abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, data.fundAmount, sig);
+        return abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, sig);
     }
 
     function getERC20ModeData(PaymasterData memory data, UserOperation memory userOp)
