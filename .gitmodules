@@ -4,9 +4,6 @@
 [submodule "lib/solady"]
 	path = lib/solady
 	url = https://github.com/Vectorized/solady
-[submodule "lib/openzeppelin-contracts-v4.8.0"]
-	path = lib/openzeppelin-contracts-v4.8.0
-	url = https://github.com/OpenZeppelin/openzeppelin-contracts
 [submodule "lib/account-abstraction-v6"]
 	path = lib/account-abstraction-v6
 	url = https://github.com/eth-infinitism/account-abstraction
@@ -15,4 +12,7 @@
 	url = https://github.com/eth-infinitism/account-abstraction
 [submodule "lib/openzeppelin-contracts-v5.0.2"]
 	path = lib/openzeppelin-contracts-v5.0.2
+	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/openzeppelin-contracts-v4.8.3"]
+	path = lib/openzeppelin-contracts-v4.8.3
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts

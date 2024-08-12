@@ -19,7 +19,7 @@ import "@account-abstraction-v6/core/SenderCreator.sol";
 import "@account-abstraction-v6/core/Helpers.sol";
 import "@account-abstraction-v6/core/NonceManager.sol";
 
-import "@openzeppelin-v4.8.0/contracts/security/ReentrancyGuard.sol";
+import "@openzeppelin-v4.8.3/contracts/security/ReentrancyGuard.sol";
 
 contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard {
     using UserOperationLib for UserOperation;
