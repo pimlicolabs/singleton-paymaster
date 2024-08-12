@@ -23,7 +23,7 @@ Verifying Mode:
 
 ## MagicSpendPlusMinusHalf Architecture
 
-The `src/MagicSpendPlusMinusHalf.sol` contract holds a simple permissioned implementation of MagicSpend. Users who have a valid signed withdrawRequest can call the contracts `requestWithdraw` method to pull funds from. Before and after fulfilling the user's withdraw request, the contract will run pre and post calls. These calls are arbitrary and allow the contract to provide just in time liquidity for both native ETH and ERC20 tokens.
+`src/MagicSpendPlusMinusHalf.sol` is a simple permissioned implementation of MagicSpend. Users who have a valid signed WithdrawRequest can call the contracts `requestWithdraw` method to pull funds from. Before and after fulfilling the user's withdraw request, the contract will run pre and post calls. These calls are arbitrary and allow the contract to provide just in time liquidity by doing things such as swapping to the requested token at time of withdraw.
 
 ## Core Contracts
 
@@ -37,7 +37,7 @@ The `src/MagicSpendPlusMinusHalf.sol` contract holds a simple permissioned imple
 
 ## Tests And Coverage
 
-> **Note:** This repo contains two versions of OpenZeppelin Contracts v.5.0.2 (latest version at the time of writing) and v.4.8.3. The latest version is used in all contracts found in `src`, the older version is only used in tests. This is because EntryPoint v0.6 has OpenZeppelin@v.4.8.3 as a dependency.
+> **Note:** This repo contains two versions of OpenZeppelin Contracts v.5.0.2 (latest version at the time of writing) and v.4.8.3. The latest version is used in all contracts found in `src`, the older version is only used in tests. This is because EntryPoint v0.6 has OpenZeppelin@v.4.8.3 as a hard dependency.
 
 Run the following
 

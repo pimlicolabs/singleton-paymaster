@@ -86,7 +86,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
         if (_mode != PostOpMode.postOpReverted) {
-            // If postOp reverts where the revert bytes are less than 32bytes, it will revert the whole bundle.
+            // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
+            // it will revert the whole bundle instead of just force failing the userOperation.
             // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
             // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
             bool success = SafeTransferLib.trySafeTransferFrom(token, sender, treasury, costInToken);
