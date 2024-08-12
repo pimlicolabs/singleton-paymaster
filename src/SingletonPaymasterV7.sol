@@ -13,7 +13,7 @@ import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-import {BaseSingletonPaymaster, ERC20PaymasterData} from "./base/BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext} from "./base/BaseSingletonPaymaster.sol";
 import {IPaymasterV7} from "./interfaces/IPaymasterV7.sol";
 import {PostOpMode} from "./interfaces/PostOpMode.sol";
 
@@ -78,13 +78,13 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint256 _actualGasCost,
         uint256 _actualUserOpFeePerGas
     ) internal {
-        (address sender, address token, uint256 exchangeRate, uint256 postOpGas, bytes32 userOpHash,,) =
+        (address sender, address token, uint256 exchangeRate, uint128 postOpGas, bytes32 userOpHash,,) =
             _parsePostOpContext(_context);
 
         uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-        emit UserOperationSponsored(userOpHash, sender, 1, token, costInToken, exchangeRate);
+        emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
     }
 
     /**
@@ -100,18 +100,18 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         (uint8 mode, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
-        if (mode > 1) {
+        if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
             revert PaymasterModeInvalid();
         }
 
         bytes memory context;
         uint256 validationData;
 
-        if (mode == 0) {
+        if (mode == VERIFYING_MODE) {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        if (mode == 1) {
+        if (mode == ERC20_MODE) {
             (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
 
@@ -215,7 +215,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @param _userOp The user operation data.
      * @param _validUntil The timestamp until which the user operation is valid.
      * @param _validAfter The timestamp after which the user operation is valid.
-     * @param _exchangeRate The maximum amount of tokens allowed for the user operation. 0 if no limit.
+     * @param _exchangeRate The exchange used during cost calculation.
      * @return bytes32 The hash that the signer should sign over.
      */
     function _getHash(

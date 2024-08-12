@@ -3,9 +3,11 @@ pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {IERC20} from "openzeppelin-contracts-v5.0.0/contracts/token/ERC20/IERC20.sol";
 
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
 import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
@@ -35,6 +37,7 @@ contract SingletonPaymasterV7Test is Test {
     // helpers
     uint8 immutable VERIFYING_MODE = 0;
     uint8 immutable ERC20_MODE = 1;
+    uint256 immutable EXCHANGE_RATE = 3000 * 1e18;
 
     address payable beneficiary;
     address paymasterOwner;
@@ -81,25 +84,41 @@ contract SingletonPaymasterV7Test is Test {
         assertTrue(subject.signers(paymasterSigner));
     }
 
-    function testSuccess(uint8 _mode) external {
-        uint8 mode = uint8(bound(_mode, 0, 1));
-        setupERC20();
+    function testERC20Success() external {
+        setupERC20Environment();
 
         PackedUserOperation memory op = fillUserOp();
-
-        op.paymasterAndData = getSignedPaymasterData(mode, op);
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
         op.signature = signUserOp(op, userKey);
+
+        // check that UserOperationSponsored log is emitted.
+        // event data check is skipped because we don't know how much will be spent.
+        vm.expectEmit(true, true, true, false, address(paymaster));
+        emit BaseSingletonPaymaster.UserOperationSponsored(
+            getOpHash(op), op.sender, ERC20_MODE, address(token), 0, EXCHANGE_RATE
+        );
+
+        submitUserOp(op);
+    }
+
+    function testVerifyingSuccess() external {
+        PackedUserOperation memory op = fillUserOp();
+        op.paymasterAndData = getSignedPaymasterData(VERIFYING_MODE, op);
+        op.signature = signUserOp(op, userKey);
+
+        // check that UserOperationSponsored log is emitted.
+        vm.expectEmit(address(paymaster));
+        emit BaseSingletonPaymaster.UserOperationSponsored(getOpHash(op), op.sender, VERIFYING_MODE, address(0), 0, 0);
+
         submitUserOp(op);
     }
 
     function test_RevertWhen_PaymasterModeInvalid(uint8 _invalidMode) external {
-        vm.assume(_invalidMode != 0 && _invalidMode != 1);
-        setupERC20();
+        vm.assume(_invalidMode != ERC20_MODE && _invalidMode != VERIFYING_MODE);
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode, uint128(0));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -114,7 +133,7 @@ contract SingletonPaymasterV7Test is Test {
 
     function test_RevertWhen_PaymasterConfigLengthInvalid(uint8 _mode, bytes calldata _randomBytes) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
-        setupERC20();
+        setupERC20Environment();
 
         if (mode == VERIFYING_MODE) {
             vm.assume(_randomBytes.length < 12);
@@ -141,31 +160,33 @@ contract SingletonPaymasterV7Test is Test {
 
     function test_RevetWhen_PaymasterSignatureLengthInvalid(uint8 _mode) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
-        setupERC20();
+        setupERC20Environment();
 
         PackedUserOperation memory op = fillUserOp();
 
         if (mode == VERIFYING_MODE) {
             op.paymasterAndData = abi.encodePacked(
-                address(paymaster),
-                uint128(100000),
-                uint128(50000),
-                mode,
-                uint48(0),
-                int48(0),
+                address(paymaster), // paymaster
+                uint128(100000), // paymaster verification gas
+                uint128(50000), // paymaster postop gas
+                mode, // mode
+                uint48(0), // validUntil
+                uint48(0), // validAfter
                 "BYTES WITH INVALID SIGNATURE LENGTH"
             );
         }
+
         if (mode == ERC20_MODE) {
             op.paymasterAndData = abi.encodePacked(
-                address(paymaster),
-                uint128(100000),
-                uint128(50000),
-                mode,
-                uint48(0),
-                int48(0),
-                address(token),
-                uint256(1),
+                address(paymaster), // paymaster
+                uint128(100000), // paymaster verification gas
+                uint128(50000), // paymaster postop gas
+                mode, // mode
+                uint48(0), // validUntil
+                int48(0), // validAfter
+                address(token), // token
+                uint128(1), // postOpGas
+                uint256(1), // exchangeRate
                 "BYTES WITH INVALID SIGNATURE LENGTH"
             );
         }
@@ -183,7 +204,7 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     function test_RevertWhen_TokenAddressInvalid() external {
-        setupERC20();
+        setupERC20Environment();
 
         PackedUserOperation memory op = fillUserOp();
 
@@ -213,7 +234,7 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     function test_RevertWhen_ExchangeRateInvalid() external {
-        setupERC20();
+        setupERC20Environment();
 
         PackedUserOperation memory op = fillUserOp();
 
@@ -243,7 +264,7 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     function test_RevertWhen_PaymasterAndDataLengthInvalid() external {
-        setupERC20();
+        setupERC20Environment();
 
         PackedUserOperation memory op = fillUserOp();
 
@@ -261,18 +282,38 @@ contract SingletonPaymasterV7Test is Test {
         submitUserOp(op);
     }
 
-    function test_PostOpTransferFromFailed() external {
+    function test_RevertWhen_PostOpTransferFromFailed() external {
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(1, op);
-
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
         op.signature = signUserOp(op, userKey);
+
+        vm.expectEmit(address(entryPoint));
+        emit IEntryPoint.PostOpRevertReason(
+            getOpHash(op),
+            op.sender,
+            0,
+            abi.encodeWithSelector(
+                IEntryPoint.PostOpReverted.selector, abi.encodeWithSelector(SafeTransferLib.TransferFromFailed.selector)
+            )
+        );
+
         submitUserOp(op);
     }
 
     function test_RevertWhen_NonEntryPointCaller() external {
         vm.expectRevert("Sender not EntryPoint");
-        paymaster.postOp(PostOpMode.opSucceeded, "", 0, 0);
+        paymaster.postOp(
+            PostOpMode.opSucceeded,
+            abi.encodePacked(address(account), address(token), uint256(5), bytes32(0), uint256(0), uint256(0)),
+            0,
+            0
+        );
+
+        PackedUserOperation memory op = fillUserOp();
+        bytes32 opHash = getOpHash(op);
+        vm.expectRevert("Sender not EntryPoint");
+        paymaster.validatePaymasterUserOp(op, opHash, 0);
     }
 
     // HELPERS //
@@ -366,6 +407,10 @@ contract SingletonPaymasterV7Test is Test {
         return op;
     }
 
+    function getOpHash(PackedUserOperation memory op) internal view returns (bytes32) {
+        return entryPoint.getUserOpHash(op);
+    }
+
     function signUserOp(PackedUserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
         bytes32 hash = entryPoint.getUserOpHash(op);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
@@ -378,7 +423,7 @@ contract SingletonPaymasterV7Test is Test {
         entryPoint.handleOps(ops, beneficiary);
     }
 
-    function setupERC20() private {
+    function setupERC20Environment() private {
         token.sudoMint(address(account), 1000e18); // 1000 usdc;
         token.sudoMint(address(paymaster), 1); // 1000 usdc;
         token.sudoApprove(address(account), address(paymaster), UINT256_MAX);

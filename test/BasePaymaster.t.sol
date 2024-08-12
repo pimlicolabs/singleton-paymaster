@@ -2,7 +2,10 @@
 pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
+
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Ownable} from "openzeppelin-contracts-v5.0.0/contracts/access/Ownable.sol";
+
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IStakeManager} from "account-abstraction-v7/interfaces/IStakeManager.sol";
 import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
@@ -51,10 +54,22 @@ contract BasePaymasterTest is Test {
 
     function testGetDeposit() external view {
         IStakeManager.DepositInfo memory info = IStakeManager(entryPoint).getDepositInfo(address(paymaster));
-        vm.assertEq(paymaster.getDeposit(), info.deposit, "paymaster must deposit to EntryPoint during foundry setUp");
+        vm.assertEq(
+            paymaster.getDeposit(), info.deposit, "Paymaster's getDeposit function must match deposit on EntryPoint"
+        );
+        vm.assertEq(
+            paymaster.getDeposit(),
+            INITIAL_PAYMASTER_DEPOSIT,
+            "paymaster must deposit `INITIAL_PAYMASTER_DEPOSIT` to EntryPoint during setUp"
+        );
     }
 
     function testWithdrawTo() external {
+        // only owner should be able to withdraw.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        BasePaymaster(paymaster).withdrawTo(payable(user), INITIAL_PAYMASTER_DEPOSIT);
+
+        // should pass if caller is owner.
         vm.prank(paymasterOwner);
         BasePaymaster(paymaster).withdrawTo(payable(user), INITIAL_PAYMASTER_DEPOSIT);
         IStakeManager.DepositInfo memory info = IStakeManager(entryPoint).getDepositInfo(address(paymaster));
@@ -66,18 +81,45 @@ contract BasePaymasterTest is Test {
 
     function testAddStake() external {
         uint256 STAKE_AMOUNT = 1e18;
+        uint32 UNSTAKE_DELAY = 10;
+
+        // only owner should be able to add stake.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+
+        // should pass if caller is owner.
         vm.prank(paymasterOwner);
-        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(10);
+        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
         IStakeManager.DepositInfo memory info = IStakeManager(entryPoint).getDepositInfo(address(paymaster));
         vm.assertTrue(info.staked, "Paymaster should be staked");
-        vm.assertEq(info.stake, STAKE_AMOUNT, "Paymaster's should stake the correct amount");
+        vm.assertEq(info.stake, STAKE_AMOUNT, "Paymaster should have staked the correct amount");
+        vm.assertEq(info.unstakeDelaySec, UNSTAKE_DELAY, "Paymaster should have correct unstake delay");
+
+        // should be able to add to existing stake.
+        vm.prank(paymasterOwner);
+        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+        info = IStakeManager(entryPoint).getDepositInfo(address(paymaster));
+        vm.assertTrue(info.staked, "Paymaster should be staked");
+        vm.assertEq(info.stake, STAKE_AMOUNT * 2, "Paymaster should be able to add to existing stake");
+        vm.assertEq(info.unstakeDelaySec, UNSTAKE_DELAY, "Paymaster should have correct unstake delay");
     }
 
     function testUnlockWithdrawStake() external {
         uint256 STAKE_AMOUNT = 1e18;
         uint32 UNSTAKE_DELAY = 10;
-        vm.startPrank(paymasterOwner);
+
+        // add stake so that we can test unstaking.
+        vm.prank(paymasterOwner);
         BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+
+        // only owner should be able to unlockStatke + unstake.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        BasePaymaster(paymaster).unlockStake();
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        BasePaymaster(paymaster).withdrawStake(payable(user));
+
+        // should pass if caller is owner.
+        vm.startPrank(paymasterOwner);
         BasePaymaster(paymaster).unlockStake();
         vm.warp(block.timestamp + UNSTAKE_DELAY);
         BasePaymaster(paymaster).withdrawStake(payable(user));
@@ -89,22 +131,15 @@ contract BasePaymasterTest is Test {
     }
 
     function testOwnershipTransfer() external {
+        // only owner should be able to transfer ownership.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        paymaster.transferOwnership(beneficiary);
+
+        // should pass if caller is owner.
         vm.startPrank(paymasterOwner);
         assertEq(paymaster.owner(), paymasterOwner);
         paymaster.transferOwnership(beneficiary);
         assertEq(paymaster.owner(), beneficiary);
         vm.stopPrank();
     }
-
-    //function testRequireFromEntryPoint() external {
-    //    MockBasePaymaster mock = new MockBasePaymaster(address(entryPoint), address(paymasterOwner));
-    //    vm.prank(address(entryPoint));
-    //    mock.checkIsCallerEntryPoint();
-    //}
-
-    //function test_RevertWhen_SenderNotEntryPoint() external {
-    //    MockBasePaymaster mock = new MockBasePaymaster(address(entryPoint), address(paymasterOwner));
-    //    vm.expectRevert("Sender not EntryPoint");
-    //    mock.checkIsCallerEntryPoint();
-    //}
 }

@@ -9,7 +9,7 @@ import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol
 import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
 
-import {BaseSingletonPaymaster, ERC20PaymasterData} from "./base/BaseSingletonPaymaster.sol";
+import {BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext} from "./base/BaseSingletonPaymaster.sol";
 import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
 import {PostOpMode} from "./interfaces/PostOpMode.sol";
 
@@ -86,13 +86,16 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
         if (_mode != PostOpMode.postOpReverted) {
+            // If postOp reverts where the revert bytes are less than 32bytes, it will revert the whole bundle.
+            // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
+            // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
             bool success = SafeTransferLib.trySafeTransferFrom(token, sender, treasury, costInToken);
 
             if (!success) {
                 revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
             }
 
-            emit UserOperationSponsored(userOpHash, sender, 1, token, costInToken, exchangeRate);
+            emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
         }
     }
 
@@ -167,8 +170,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     {
         ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
-        bytes memory context = _createPostOpContext(_userOp, cfg.token, cfg.exchangeRate, cfg.postOpGas, _userOpHash);
-
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
             getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.postOpGas, cfg.exchangeRate)
         );
@@ -177,6 +178,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
 
+        bytes memory context = _createPostOpContext(_userOp, cfg.token, cfg.exchangeRate, cfg.postOpGas, _userOpHash);
         return (context, validationData);
     }
 
@@ -227,7 +229,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @param _userOp The user operation data.
      * @param _validUntil The timestamp until which the user operation is valid.
      * @param _validAfter The timestamp after which the user operation is valid.
-     * @param _exchangeRate The maximum amount of tokens allowed for the user operation. 0 if no limit.
+     * @param _exchangeRate The exchange used during cost calculation.
      * @return bytes32 The hash that the signer should sign over.
      */
     function _getHash(

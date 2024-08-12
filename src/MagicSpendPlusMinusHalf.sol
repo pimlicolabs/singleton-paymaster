@@ -1,0 +1,156 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.23;
+
+import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
+import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
+import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
+
+import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
+import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
+
+import {MultiSigner} from "./base/MultiSigner.sol";
+
+import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+
+struct CallStruct {
+    address to;
+    uint256 value;
+    bytes data;
+}
+
+/// @notice Signed withdraw request allowing users to withdraw funds from the paymaster's EntryPoint deposit.
+struct WithdrawRequest {
+    /// @dev The receiver of the funds.
+    address recipient;
+    /// @dev Asset that user wants to withdraw.
+    address asset;
+    /// @dev The requested amount to withdraw.
+    uint256 amount;
+    /// @dev Unique nonce used to prevent replays.
+    uint256 nonce;
+    /// @dev Calls that will be made before the funds are sent to the user.
+    CallStruct[] preCalls;
+    /// @dev Calls that will be made before the funds are sent to the user.
+    CallStruct[] postCalls;
+    /// @dev The time in which the request is valid until.
+    uint48 validUntil;
+    /// @dev The time in which this request is valid after.
+    uint48 validAfter;
+    /// @dev The signature associated with this withdraw request.
+    bytes signature;
+}
+
+contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
+    /// @notice Thrown when the request was submitted past its validUntil.
+    error RequestExpired();
+
+    /// @notice Thrown when the request was submitted before its validAfter.
+    error RequestNotYetValid();
+
+    /// @notice The withdraw request was initiated with a invalid nonce.
+    error signatureInvalid();
+
+    /// @notice The withdraw request was initiated with a invalid nonce.
+    /// @param nonce The nonce used in the withdraw request.
+    error nonceInvalid(uint256 nonce);
+
+    /// @notice Emitted when a withdraw request has been fulfilled.
+    event WithdrawRequestFulfilled(address receiver, uint256 amount, address asset, uint256 nonce);
+
+    /// @notice Mappings keeping track of already used nonces per user to prevent replays of withdraw requests.
+    mapping(address user => mapping(uint256 nonce => bool used)) public nonceUsed;
+
+    constructor(address _owner) Ownable(_owner) {}
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                     EXTERNAL FUNCTIONS                     */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    /**
+     * @notice Fulfills a withdraw request only if it passes validation and has a valid signature.
+     */
+    function requestWithdraw(WithdrawRequest calldata withdrawRequest) external {
+        if (block.timestamp > withdrawRequest.validUntil) {
+            revert RequestExpired();
+        }
+
+        if (block.timestamp < withdrawRequest.validAfter && withdrawRequest.validAfter != 0) {
+            revert RequestNotYetValid();
+        }
+
+        // check signature
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(withdrawRequest));
+        address recoveredSigner = ECDSA.recover(hash, withdrawRequest.signature);
+
+        if (!signers[recoveredSigner]) {
+            revert signatureInvalid();
+        }
+
+        // check withdraw request params
+        if (nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce]) {
+            revert nonceInvalid(withdrawRequest.nonce);
+        }
+
+        for (uint256 i = 0; i < withdrawRequest.preCalls.length; i++) {
+            address to = withdrawRequest.preCalls[i].to;
+            uint256 value = withdrawRequest.preCalls[i].value;
+            bytes memory data = withdrawRequest.preCalls[i].data;
+
+            (bool success, bytes memory returnData) = to.call{value: value}(data);
+
+            if (!success) {
+                assembly {
+                    let returnDataSize := mload(returnData)
+                    revert(add(32, returnData), returnDataSize)
+                }
+            }
+        }
+
+        if (withdrawRequest.asset == address(0)) {
+            SafeTransferLib.safeTransferETH(withdrawRequest.recipient, withdrawRequest.amount);
+        } else {
+            SafeTransferLib.safeTransfer(withdrawRequest.asset, withdrawRequest.recipient, withdrawRequest.amount);
+        }
+
+        for (uint256 i = 0; i < withdrawRequest.postCalls.length; i++) {
+            address to = withdrawRequest.postCalls[i].to;
+            uint256 value = withdrawRequest.postCalls[i].value;
+            bytes memory data = withdrawRequest.postCalls[i].data;
+
+            (bool success, bytes memory returnData) = to.call{value: value}(data);
+
+            if (!success) {
+                assembly {
+                    let returnDataSize := mload(returnData)
+                    revert(add(32, returnData), returnDataSize)
+                }
+            }
+        }
+
+        nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce] = true;
+        emit WithdrawRequestFulfilled(
+            withdrawRequest.recipient, withdrawRequest.amount, withdrawRequest.asset, withdrawRequest.nonce
+        );
+    }
+
+    /**
+     * @notice Allows the caller to withdraw funds if a valid signature is passed.
+     * @param withdrawRequest The withdraw request to get the hash of.
+     * @return The hashed withdraw request.
+     */
+    function getHash(WithdrawRequest calldata withdrawRequest) public view returns (bytes32) {
+        return keccak256(
+            abi.encode(
+                address(this),
+                block.chainid,
+                withdrawRequest.recipient,
+                withdrawRequest.amount,
+                withdrawRequest.nonce,
+                withdrawRequest.validUntil,
+                withdrawRequest.validAfter
+            )
+        );
+    }
+}
