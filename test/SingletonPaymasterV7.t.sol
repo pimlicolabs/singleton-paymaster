@@ -87,6 +87,9 @@ contract SingletonPaymasterV7Test is Test {
     function testERC20Success() external {
         setupERC20Environment();
 
+        // treasury should have no tokens
+        assertEq(token.balanceOf(paymasterOwner), 0);
+
         PackedUserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
         op.signature = signUserOp(op, userKey);
@@ -99,6 +102,9 @@ contract SingletonPaymasterV7Test is Test {
         );
 
         submitUserOp(op);
+
+        // treasury should now have tokens
+        assertGt(token.balanceOf(paymasterOwner), 0);
     }
 
     function testVerifyingSuccess() external {
@@ -110,6 +116,65 @@ contract SingletonPaymasterV7Test is Test {
         vm.expectEmit(address(paymaster));
         emit BaseSingletonPaymaster.UserOperationSponsored(getOpHash(op), op.sender, VERIFYING_MODE, address(0), 0, 0);
 
+        submitUserOp(op);
+    }
+
+    function test_RevertWhen_ERC20PaymasterSignatureInvalid() external {
+        PackedUserOperation memory op = fillUserOp();
+
+        uint48 validUntil = 0;
+        uint48 validAfter = 0;
+        address erc20 = address(token);
+        uint128 postOpGas = 50_000;
+
+        // sign with random private key to force false signature
+        (, uint256 unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), VERIFYING_MODE);
+        bytes32 hash = paymaster.getHash(op, validUntil, validAfter, erc20, postOpGas, EXCHANGE_RATE);
+        bytes memory sig = getSignature(hash, unauthorizedSignerKey);
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster),
+            uint128(500_000), // paymaster verifying gasLimit
+            uint128(500_000), // paymaster postOp gasLimit
+            ERC20_MODE,
+            validUntil, // validUntil
+            validAfter, // validAfter
+            erc20,
+            postOpGas, // token postOp gas
+            EXCHANGE_RATE,
+            sig
+        );
+        op.signature = signUserOp(op, userKey);
+
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
+        submitUserOp(op);
+    }
+
+    function test_RevertWhen_VerifyingPaymasterSignatureInvalid() external {
+        PackedUserOperation memory op = fillUserOp();
+
+        uint48 validUntil = 0;
+        uint48 validAfter = 0;
+
+        // sign with random private key to force false signature
+        (, uint256 unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), VERIFYING_MODE);
+        bytes32 hash = paymaster.getHash(op, validUntil, validAfter);
+        bytes memory sig = getSignature(hash, unauthorizedSignerKey);
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster),
+            uint128(500_000), // paymaster verifying gas
+            uint128(500_000), // paymaster postOp gas
+            VERIFYING_MODE,
+            validUntil,
+            validAfter,
+            sig
+        );
+        op.signature = signUserOp(op, userKey);
+
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
         submitUserOp(op);
     }
 
@@ -140,7 +205,7 @@ contract SingletonPaymasterV7Test is Test {
         }
 
         if (mode == ERC20_MODE) {
-            vm.assume(_randomBytes.length < 64);
+            vm.assume(_randomBytes.length < 80);
         }
 
         PackedUserOperation memory op = fillUserOp();
@@ -158,7 +223,7 @@ contract SingletonPaymasterV7Test is Test {
         submitUserOp(op);
     }
 
-    function test_RevetWhen_PaymasterSignatureLengthInvalid(uint8 _mode) external {
+    function test_RevertWhen_PaymasterSignatureLengthInvalid(uint8 _mode) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
         setupERC20Environment();
 
@@ -213,10 +278,10 @@ contract SingletonPaymasterV7Test is Test {
             uint128(100000),
             uint128(50000),
             ERC20_MODE,
-            uint128(0), // fund amount
             uint48(0),
             int48(0),
             address(0), // will throw here, token address cannot be zero.
+            uint128(0),
             uint256(1),
             "DummySignature"
         );
@@ -349,7 +414,7 @@ contract SingletonPaymasterV7Test is Test {
         returns (bytes memory)
     {
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter);
-        bytes memory sig = getSignature(hash);
+        bytes memory sig = getSignature(hash, paymasterSignerKey);
 
         return abi.encodePacked(
             data.paymasterAddress,
@@ -367,12 +432,11 @@ contract SingletonPaymasterV7Test is Test {
         view
         returns (bytes memory)
     {
-        uint256 exchangeRate = 0.0016 * 1e18;
         address erc20 = address(token);
 
         uint128 postOpGas = 50_000;
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate);
-        bytes memory sig = getSignature(hash);
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, EXCHANGE_RATE);
+        bytes memory sig = getSignature(hash, paymasterSignerKey);
 
         return abi.encodePacked(
             data.paymasterAddress,
@@ -383,14 +447,14 @@ contract SingletonPaymasterV7Test is Test {
             data.validAfter,
             erc20,
             postOpGas,
-            exchangeRate,
+            EXCHANGE_RATE,
             sig
         );
     }
 
-    function getSignature(bytes32 hash) private view returns (bytes memory) {
+    function getSignature(bytes32 hash, uint256 signingKey) private pure returns (bytes memory) {
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterSignerKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signingKey, digest);
         return abi.encodePacked(r, s, v);
     }
 
@@ -424,8 +488,8 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     function setupERC20Environment() private {
-        token.sudoMint(address(account), 1000e18); // 1000 usdc;
-        token.sudoMint(address(paymaster), 1); // 1000 usdc;
+        token.sudoMint(address(account), 1000e18);
+        token.sudoMint(address(paymaster), 1);
         token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
     }
 }

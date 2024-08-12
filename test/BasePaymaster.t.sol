@@ -10,7 +10,6 @@ import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserO
 import {IStakeManager} from "account-abstraction-v7/interfaces/IStakeManager.sol";
 import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-import {MockBasePaymaster} from "./utils/mocks/MockBasePaymasterImplementation.sol";
 import {EntryPoint} from "./utils/account-abstraction/v07/core/EntryPoint.sol";
 import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
 import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
@@ -21,7 +20,7 @@ import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
 contract BasePaymasterTest is Test {
-    uint256 immutable INITIAL_PAYMASTER_DEPOSIT = 100e18;
+    uint256 immutable INITIAL_PAYMASTER_DEPOSIT = 100 ether;
 
     address payable beneficiary;
     address paymasterOwner;

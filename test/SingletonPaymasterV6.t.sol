@@ -87,6 +87,9 @@ contract SingletonPaymasterV6Test is Test {
     function testERC20Success() external {
         setupERC20Environment();
 
+        // treasury should have no tokens
+        assertEq(token.balanceOf(paymasterOwner), 0);
+
         UserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
         op.signature = signUserOp(op, userKey);
@@ -99,6 +102,9 @@ contract SingletonPaymasterV6Test is Test {
         );
 
         submitUserOp(op);
+
+        // treasury should now have tokens
+        assertGt(token.balanceOf(paymasterOwner), 0);
     }
 
     function testVerifyingSuccess() external {
@@ -113,10 +119,59 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
     }
 
+    function test_RevertWhen_ERC20PaymasterSignatureInvalid() external {
+        UserOperation memory op = fillUserOp();
+
+        uint48 validUntil = 0;
+        uint48 validAfter = 0;
+        address erc20 = address(token);
+        uint128 postOpGas = 50_000;
+
+        // sign with random private key to force false signature
+        (, uint256 unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), VERIFYING_MODE);
+        bytes32 hash = paymaster.getHash(op, validUntil, validAfter, erc20, postOpGas, EXCHANGE_RATE);
+        bytes memory sig = getSignature(hash, unauthorizedSignerKey);
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster),
+            ERC20_MODE,
+            validUntil, // validUntil
+            validAfter, // validAfter
+            erc20,
+            postOpGas, // token postOp gas
+            EXCHANGE_RATE,
+            sig
+        );
+        op.signature = signUserOp(op, userKey);
+
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
+        submitUserOp(op);
+    }
+
+    function test_RevertWhen_VerifyingPaymasterSignatureInvalid() external {
+        UserOperation memory op = fillUserOp();
+
+        uint48 validUntil = 0;
+        uint48 validAfter = 0;
+
+        // sign with random private key to force false signature
+        (, uint256 unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), VERIFYING_MODE);
+        bytes32 hash = paymaster.getHash(op, validUntil, validAfter);
+        bytes memory sig = getSignature(hash, unauthorizedSignerKey);
+
+        op.paymasterAndData = abi.encodePacked(address(paymaster), VERIFYING_MODE, validUntil, validAfter, sig);
+        op.signature = signUserOp(op, userKey);
+
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
+        submitUserOp(op);
+    }
+
     function testERC20LegacySuccess() external {
         setupERC20Environment();
 
-        // on chains that don't support ERC-1559, the UserOperation's maxFee & maxPriorityFee are equal.
+        // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
         UserOperation memory op = fillUserOp();
         op.maxPriorityFeePerGas = 5;
         op.maxFeePerGas = 5;
@@ -153,7 +208,7 @@ contract SingletonPaymasterV6Test is Test {
         }
 
         if (mode == ERC20_MODE) {
-            vm.assume(_randomBytes.length < 64);
+            vm.assume(_randomBytes.length < 80);
         }
 
         UserOperation memory op = fillUserOp();
@@ -307,7 +362,7 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter);
-        bytes memory sig = getSignature(hash);
+        bytes memory sig = getSignature(hash, paymasterSignerKey);
 
         return abi.encodePacked(data.paymasterAddress, data.mode, data.validUntil, data.validAfter, sig);
     }
@@ -321,16 +376,16 @@ contract SingletonPaymasterV6Test is Test {
 
         uint128 postOpGas = 50_000;
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, EXCHANGE_RATE);
-        bytes memory sig = getSignature(hash);
+        bytes memory sig = getSignature(hash, paymasterSignerKey);
 
         return abi.encodePacked(
             data.paymasterAddress, data.mode, data.validUntil, data.validAfter, erc20, postOpGas, EXCHANGE_RATE, sig
         );
     }
 
-    function getSignature(bytes32 hash) private view returns (bytes memory) {
+    function getSignature(bytes32 hash, uint256 signingKey) private pure returns (bytes memory) {
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(paymasterSignerKey, digest);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(signingKey, digest);
         return abi.encodePacked(r, s, v);
     }
 

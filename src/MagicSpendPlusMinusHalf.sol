@@ -5,6 +5,7 @@ import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
 
+import {IERC20} from "@openzeppelin-v5.0.0/contracts/token/ERC20/IERC20.sol";
 import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
 import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
 import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
@@ -14,6 +15,7 @@ import {MultiSigner} from "./base/MultiSigner.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+/// @notice Helper struct to represent a call to be made.
 struct CallStruct {
     address to;
     uint256 value;
@@ -42,6 +44,12 @@ struct WithdrawRequest {
     bytes signature;
 }
 
+/// @title MagicSpendPlusMinusHalf
+/// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/MagicSpendPlusMinusHalf.sol)
+/// @notice Contract that allows users to pull funds from if they provide a valid signed withdrawRequest.
+/// @dev Inherits from MultiSigner.
+/// @dev Inherits from Ownable.
+/// @custom:security-contact security@pimlico.io
 contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     /// @notice Thrown when the request was submitted past its validUntil.
     error RequestExpired();
@@ -50,11 +58,17 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     error RequestNotYetValid();
 
     /// @notice The withdraw request was initiated with a invalid nonce.
-    error signatureInvalid();
+    error SignatureInvalid();
 
     /// @notice The withdraw request was initiated with a invalid nonce.
     /// @param nonce The nonce used in the withdraw request.
-    error nonceInvalid(uint256 nonce);
+    error NonceInvalid(uint256 nonce);
+
+    /// @notice Thrown when any of the pre calls revert.
+    error PreCallReverted();
+
+    /// @notice Thrown when any of the post calls revert.
+    error PostCallReverted();
 
     /// @notice Emitted when a withdraw request has been fulfilled.
     event WithdrawRequestFulfilled(address receiver, uint256 amount, address asset, uint256 nonce);
@@ -69,10 +83,10 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Fulfills a withdraw request only if it passes validation and has a valid signature.
+     * @notice Fulfills a withdraw request only if it has a valid signature and passes validation.
      */
     function requestWithdraw(WithdrawRequest calldata withdrawRequest) external {
-        if (block.timestamp > withdrawRequest.validUntil) {
+        if (block.timestamp > withdrawRequest.validUntil && withdrawRequest.validUntil != 0) {
             revert RequestExpired();
         }
 
@@ -85,47 +99,44 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
         address recoveredSigner = ECDSA.recover(hash, withdrawRequest.signature);
 
         if (!signers[recoveredSigner]) {
-            revert signatureInvalid();
+            revert SignatureInvalid();
         }
 
         // check withdraw request params
         if (nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce]) {
-            revert nonceInvalid(withdrawRequest.nonce);
+            revert NonceInvalid(withdrawRequest.nonce);
         }
 
+        // run pre calls
         for (uint256 i = 0; i < withdrawRequest.preCalls.length; i++) {
             address to = withdrawRequest.preCalls[i].to;
             uint256 value = withdrawRequest.preCalls[i].value;
             bytes memory data = withdrawRequest.preCalls[i].data;
 
-            (bool success, bytes memory returnData) = to.call{value: value}(data);
+            (bool success,) = to.call{value: value}(data);
 
             if (!success) {
-                assembly {
-                    let returnDataSize := mload(returnData)
-                    revert(add(32, returnData), returnDataSize)
-                }
+                revert PreCallReverted();
             }
         }
 
+        // fulfil withdraw request
         if (withdrawRequest.asset == address(0)) {
             SafeTransferLib.safeTransferETH(withdrawRequest.recipient, withdrawRequest.amount);
         } else {
             SafeTransferLib.safeTransfer(withdrawRequest.asset, withdrawRequest.recipient, withdrawRequest.amount);
         }
 
+        // run postcalls
         for (uint256 i = 0; i < withdrawRequest.postCalls.length; i++) {
             address to = withdrawRequest.postCalls[i].to;
             uint256 value = withdrawRequest.postCalls[i].value;
             bytes memory data = withdrawRequest.postCalls[i].data;
 
-            (bool success, bytes memory returnData) = to.call{value: value}(data);
+            (bool success,) = to.call{value: value}(data);
 
             if (!success) {
-                assembly {
-                    let returnDataSize := mload(returnData)
-                    revert(add(32, returnData), returnDataSize)
-                }
+                revert PostCallReverted();
             }
         }
 
@@ -146,10 +157,13 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
                 address(this),
                 block.chainid,
                 withdrawRequest.recipient,
+                withdrawRequest.asset,
                 withdrawRequest.amount,
                 withdrawRequest.nonce,
                 withdrawRequest.validUntil,
-                withdrawRequest.validAfter
+                withdrawRequest.validAfter,
+                keccak256(abi.encode(withdrawRequest.preCalls)),
+                keccak256(abi.encode(withdrawRequest.postCalls))
             )
         );
     }
