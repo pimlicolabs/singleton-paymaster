@@ -10,9 +10,9 @@ import {MultiSigner} from "./MultiSigner.sol";
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
-import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import {ECDSA} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";

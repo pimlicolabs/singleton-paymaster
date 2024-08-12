@@ -1,8 +1,8 @@
 // SPDX-License-Identifier: GPL-3.0
 pragma solidity ^0.8.23;
 
-import "@openzeppelin-v5.0.0/contracts/utils/Create2.sol";
-import "@openzeppelin-v5.0.0/contracts/proxy/ERC1967/ERC1967Proxy.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/Create2.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/ERC1967/ERC1967Proxy.sol";
 
 import "./SimpleAccount.sol";
 

@@ -5,11 +5,11 @@ import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
 
-import {IERC20} from "@openzeppelin-v5.0.0/contracts/token/ERC20/IERC20.sol";
-import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
-import {Ownable} from "@openzeppelin-v5.0.0/contracts/access/Ownable.sol";
+import {IERC20} from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import {ECDSA} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 import {MultiSigner} from "./base/MultiSigner.sol";
 

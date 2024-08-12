@@ -6,7 +6,7 @@ import {Test, console} from "forge-std/Test.sol";
 import {MagicSpendPlusMinusHalf, WithdrawRequest, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
+import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
 contract MagicSpendPlusMinusHalfTest is Test {

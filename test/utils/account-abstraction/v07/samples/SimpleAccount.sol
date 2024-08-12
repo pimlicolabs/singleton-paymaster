@@ -5,10 +5,10 @@ pragma solidity ^0.8.23;
 /* solhint-disable no-inline-assembly */
 /* solhint-disable reason-string */
 
-import "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
-import "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
-import "@openzeppelin-v5.0.0/contracts/proxy/utils/Initializable.sol";
-import "@openzeppelin-v5.0.0/contracts/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/utils/Initializable.sol";
+import "@openzeppelin-v5.0.2/contracts/proxy/utils/UUPSUpgradeable.sol";
 import "../core/BaseAccount.sol";
 import "@account-abstraction-v7/core/Helpers.sol";
 import "./callback/TokenCallbackHandler.sol";

@@ -7,9 +7,9 @@ import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
 import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
 import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/core/UserOperationLib.sol";
 
-import {ECDSA} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin-v5.0.0/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "@openzeppelin-v5.0.0/contracts/utils/math/Math.sol";
+import {ECDSA} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
