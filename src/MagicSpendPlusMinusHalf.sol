@@ -15,7 +15,7 @@ import {MultiSigner} from "./base/MultiSigner.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-/// @notice Helper struct to represent a call to be made.
+/// @notice Helper struct that represents a call to be made.
 struct CallStruct {
     address to;
     uint256 value;
@@ -24,8 +24,6 @@ struct CallStruct {
 
 /// @notice Signed withdraw request allowing users to withdraw funds from the paymaster's EntryPoint deposit.
 struct WithdrawRequest {
-    /// @dev The receiver of the funds.
-    address recipient;
     /// @dev Asset that user wants to withdraw.
     address asset;
     /// @dev The requested amount to withdraw.
@@ -94,8 +92,10 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
             revert RequestNotYetValid();
         }
 
+        address recipient = msg.sender;
+
         // check signature
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(withdrawRequest));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(recipient, withdrawRequest));
         address recoveredSigner = ECDSA.recover(hash, withdrawRequest.signature);
 
         if (!signers[recoveredSigner]) {
@@ -103,7 +103,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
         }
 
         // check withdraw request params
-        if (nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce]) {
+        if (nonceUsed[recipient][withdrawRequest.nonce]) {
             revert NonceInvalid(withdrawRequest.nonce);
         }
 
@@ -122,9 +122,9 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
 
         // fulfil withdraw request
         if (withdrawRequest.asset == address(0)) {
-            SafeTransferLib.safeTransferETH(withdrawRequest.recipient, withdrawRequest.amount);
+            SafeTransferLib.safeTransferETH(recipient, withdrawRequest.amount);
         } else {
-            SafeTransferLib.safeTransfer(withdrawRequest.asset, withdrawRequest.recipient, withdrawRequest.amount);
+            SafeTransferLib.safeTransfer(withdrawRequest.asset, recipient, withdrawRequest.amount);
         }
 
         // run postcalls
@@ -140,23 +140,22 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
             }
         }
 
-        nonceUsed[withdrawRequest.recipient][withdrawRequest.nonce] = true;
-        emit WithdrawRequestFulfilled(
-            withdrawRequest.recipient, withdrawRequest.amount, withdrawRequest.asset, withdrawRequest.nonce
-        );
+        nonceUsed[recipient][withdrawRequest.nonce] = true;
+        emit WithdrawRequestFulfilled(recipient, withdrawRequest.amount, withdrawRequest.asset, withdrawRequest.nonce);
     }
 
     /**
      * @notice Allows the caller to withdraw funds if a valid signature is passed.
+     * @dev At time of call, recipient will be equal to msg.sender.
      * @param withdrawRequest The withdraw request to get the hash of.
      * @return The hashed withdraw request.
      */
-    function getHash(WithdrawRequest calldata withdrawRequest) public view returns (bytes32) {
+    function getHash(address recipient, WithdrawRequest calldata withdrawRequest) public view returns (bytes32) {
         return keccak256(
             abi.encode(
                 address(this),
                 block.chainid,
-                withdrawRequest.recipient,
+                recipient,
                 withdrawRequest.asset,
                 withdrawRequest.amount,
                 withdrawRequest.nonce,

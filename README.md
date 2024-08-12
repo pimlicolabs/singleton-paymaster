@@ -21,9 +21,9 @@ Verifying Mode:
 
 **Note:** In ERC-20 mode, the paymaster does not take a prefund during the `validatePaymasterUserOp` phase. This means that a malicious user can bypass the payment in the `postOp` call. If a user does this, the userOperation will be funded from their Pimlico balance.
 
-## Withdraw Flow Architecture
+## MagicSpendPlusMinusHalf Architecture
 
-The paymaster has a additional function called `requestWithdraw()`, this function lives outside of the ERC-4337 flow. If the function is called with a valid signature, the paymaster will send funds to the withdraw recipient. Smart accounts can make a call to this function during the userOperation's call phase to get funds to carry out their other operations.
+The `src/MagicSpendPlusMinusHalf.sol` contract holds a simple permissioned implementation of MagicSpend. Users who have a valid signed withdrawRequest can call the contracts `requestWithdraw` method to pull funds from. Before and after fulfilling the user's withdraw request, the contract will run pre and post calls. These calls are arbitrary and allow the contract to provide just in time liquidity for both native ETH and ERC20 tokens.
 
 ## Core Contracts
 
@@ -35,7 +35,9 @@ The paymaster has a additional function called `requestWithdraw()`, this functio
 | `SingletonPaymasterV7`            | Singleton paymaster implementation (for EntryPoint v0.7). |
 
 
-## Coverage
+## Tests And Coverage
+
+> **Note:** This repo contains two versions of OpenZeppelin Contracts v.5.0.2 (latest version at the time of writing) and v.4.8.3. The latest version is used in all contracts found in `src`, the older version is only used in tests. This is because EntryPoint v0.6 has OpenZeppelin@v.4.8.3 as a dependency.
 
 Run the following
 
