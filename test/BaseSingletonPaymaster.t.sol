@@ -3,6 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import {Ownable} from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
@@ -59,28 +60,44 @@ contract BaseSingletonPaymasterTest is Test {
     }
 
     function testUpdateTreasury() external {
-        vm.startPrank(paymasterOwner);
         assertEq(paymaster.treasury(), paymasterOwner);
+
+        // only owner should be able to update treasury.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        paymaster.setTreasury(address(this));
+
+        // should pass if caller is owner.
+        vm.prank(paymasterOwner);
         paymaster.setTreasury(beneficiary);
         assertEq(paymaster.treasury(), beneficiary);
-        vm.stopPrank();
     }
 
     function testAddSigner() external {
-        vm.startPrank(paymasterOwner);
         assertFalse(paymaster.signers(beneficiary));
+
+        // only owner should be able to add signer.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        paymaster.addSigner(beneficiary);
+
+        // should pass if caller is owner.
+        vm.prank(paymasterOwner);
         paymaster.addSigner(beneficiary);
         assertTrue(paymaster.signers(beneficiary));
-        vm.stopPrank();
     }
 
     function testRemoveSigner() external {
-        vm.startPrank(paymasterOwner);
+        // setup
+        vm.prank(paymasterOwner);
+        paymaster.addSigner(beneficiary);
+        assertTrue(paymaster.signers(beneficiary));
 
-        paymaster.addSigner(paymasterOwner);
-        assertTrue(paymaster.signers(paymasterOwner));
+        // only owner should be able to remove signer.
+        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        paymaster.removeSigner(beneficiary);
 
-        paymaster.removeSigner(paymasterOwner);
-        assertFalse(paymaster.signers(paymasterOwner));
+        // should pass if caller is owner.
+        vm.prank(paymasterOwner);
+        paymaster.removeSigner(beneficiary);
+        assertFalse(paymaster.signers(beneficiary));
     }
 }

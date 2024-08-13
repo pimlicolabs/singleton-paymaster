@@ -5,6 +5,7 @@ import {Test, console} from "forge-std/Test.sol";
 
 import {MagicSpendPlusMinusHalf, WithdrawRequest, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
+import {ForceReverter} from "./utils/ForceReverter.sol";
 
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
@@ -16,6 +17,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
     address signer;
     uint256 signerKey;
 
+    ForceReverter forceReverter;
     MagicSpendPlusMinusHalf magicSpendPlusMinusHalf;
     TestERC20 token;
 
@@ -24,6 +26,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         magicSpendPlusMinusHalf = new MagicSpendPlusMinusHalf(OWNER);
         token = new TestERC20(18);
+        forceReverter = new ForceReverter();
 
         vm.prank(OWNER);
         magicSpendPlusMinusHalf.addSigner(signer);
@@ -217,6 +220,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
         address asset = address(0);
         uint256 nonce = 0;
 
+        string memory revertMessage = "MAGIC";
+
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             amount: amount,
             asset: asset,
@@ -228,12 +233,15 @@ contract MagicSpendPlusMinusHalfTest is Test {
             signature: ""
         });
         // force a revert by calling non existant function
-        withdrawRequest.preCalls[0] =
-            CallStruct({to: address(token), data: abi.encodeWithSignature("forceRevert()"), value: 0});
+        withdrawRequest.preCalls[0] = CallStruct({
+            to: address(forceReverter),
+            data: abi.encodeWithSignature("forceRevertWithMessage(string)", revertMessage),
+            value: 0
+        });
         withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
         vm.prank(RECIPIENT);
-        vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PreCallReverted.selector));
+        vm.expectRevert(abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage));
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
     }
 
@@ -241,6 +249,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
         uint256 amount = 5 ether;
         address asset = address(0);
         uint256 nonce = 0;
+
+        string memory revertMessage = "MAGIC";
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             amount: amount,
@@ -253,13 +263,16 @@ contract MagicSpendPlusMinusHalfTest is Test {
             signature: ""
         });
         // force a revert by calling non existant function
-        withdrawRequest.postCalls[0] =
-            CallStruct({to: address(token), data: abi.encodeWithSignature("forceRevert()"), value: 0});
+        withdrawRequest.postCalls[0] = CallStruct({
+            to: address(forceReverter),
+            data: abi.encodeWithSignature("forceRevertWithMessage(string)", revertMessage),
+            value: 0
+        });
         withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
         vm.deal(address(magicSpendPlusMinusHalf), 100 ether);
         vm.prank(RECIPIENT);
-        vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PostCallReverted.selector));
+        vm.expectRevert(abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage));
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
     }
 

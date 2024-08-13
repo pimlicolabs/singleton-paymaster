@@ -117,9 +117,13 @@ contract BasePaymasterTest is Test {
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
         BasePaymaster(paymaster).withdrawStake(payable(user));
 
-        // should pass if caller is owner.
+        // calling unlock too early should revert
         vm.startPrank(paymasterOwner);
         BasePaymaster(paymaster).unlockStake();
+        vm.expectRevert("Stake withdrawal is not due");
+        BasePaymaster(paymaster).withdrawStake(payable(user));
+
+        // should pass when caller is owner.
         vm.warp(block.timestamp + UNSTAKE_DELAY);
         BasePaymaster(paymaster).withdrawStake(payable(user));
 

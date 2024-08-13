@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
+import {Test, console} from "forge-std/Test.sol";
+
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
@@ -62,12 +64,6 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     /// @param nonce The nonce used in the withdraw request.
     error NonceInvalid(uint256 nonce);
 
-    /// @notice Thrown when any of the pre calls revert.
-    error PreCallReverted();
-
-    /// @notice Thrown when any of the post calls revert.
-    error PostCallReverted();
-
     /// @notice Emitted when a withdraw request has been fulfilled.
     event WithdrawRequestFulfilled(address receiver, uint256 amount, address asset, uint256 nonce);
 
@@ -113,16 +109,18 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
             uint256 value = withdrawRequest.preCalls[i].value;
             bytes memory data = withdrawRequest.preCalls[i].data;
 
-            (bool success,) = to.call{value: value}(data);
+            (bool success, bytes memory result) = to.call{value: value}(data);
 
             if (!success) {
-                revert PreCallReverted();
+                assembly {
+                    revert(add(32, result), mload(result))
+                }
             }
         }
 
         // fulfil withdraw request
         if (withdrawRequest.asset == address(0)) {
-            SafeTransferLib.safeTransferETH(recipient, withdrawRequest.amount);
+            SafeTransferLib.forceSafeTransferETH(recipient, withdrawRequest.amount);
         } else {
             SafeTransferLib.safeTransfer(withdrawRequest.asset, recipient, withdrawRequest.amount);
         }
@@ -133,10 +131,12 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
             uint256 value = withdrawRequest.postCalls[i].value;
             bytes memory data = withdrawRequest.postCalls[i].data;
 
-            (bool success,) = to.call{value: value}(data);
+            (bool success, bytes memory result) = to.call{value: value}(data);
 
             if (!success) {
-                revert PostCallReverted();
+                assembly {
+                    revert(add(result, 32), mload(result))
+                }
             }
         }
 
