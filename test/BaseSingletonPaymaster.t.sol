@@ -111,8 +111,6 @@ contract BaseSingletonPaymasterTest is Test {
         uint256 actualUserOpFeePerGas = bound(_actualUserOpFeePerGas, 0.01 gwei, 5000 gwei);
         uint256 userOperationGasUsed = bound(_userOperationGasUsed, 21_000, 30_000_000);
 
-        // exchangeRate of 1e6 means 1 full token = 0.000000000001 ETH (significnalty lower than most memecoins)
-        // exchangeRate of 1e50 means 1 full token = 1e32 ETH (significnalty higher than most coins)
         uint256 exchangeRate = bound(_exchangeRate, 1e6, 1e50);
 
         uint256 actualGasCost = userOperationGasUsed * userOperationGasUsed;

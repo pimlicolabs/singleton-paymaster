@@ -205,7 +205,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint128 _postOpGas,
         uint256 _exchangeRate
     ) public view returns (bytes32) {
-        return _getHash(_userOp, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate);
+        return
+            _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate);
     }
 
     /**
@@ -220,7 +221,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         view
         returns (bytes32)
     {
-        return _getHash(_userOp, _validUntil, _validAfter, address(0), 0, 0);
+        return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH, _validUntil, _validAfter, address(0), 0, 0);
     }
 
     /**
@@ -235,6 +236,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      */
     function _getHash(
         UserOperation calldata _userOp,
+        uint256 paymasterDataLength,
         uint256 _validUntil,
         uint256 _validAfter,
         address _token,
@@ -259,8 +261,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             {
                 blob = abi.encode(
                     blob,
-                    // hashing over paymaster mode.
-                    uint8(bytes1(_userOp.paymasterAndData[PAYMASTER_DATA_OFFSET:PAYMASTER_DATA_OFFSET + 1])),
+                    // hashing over all paymaster fields besides signature
+                    uint8(bytes1(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength])),
                     _userOp.maxFeePerGas,
                     _userOp.maxPriorityFeePerGas
                 );

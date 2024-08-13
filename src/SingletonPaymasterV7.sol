@@ -190,7 +190,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint128 _postOpGas,
         uint256 _exchangeRate
     ) public view returns (bytes32) {
-        return _getHash(_userOp, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate);
+        return
+            _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate);
     }
 
     /**
@@ -205,7 +206,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         view
         returns (bytes32)
     {
-        return _getHash(_userOp, _validUntil, _validAfter, address(0), 0, 0);
+        return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH, _validUntil, _validAfter, address(0), 0, 0);
     }
 
     /**
@@ -220,6 +221,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      */
     function _getHash(
         PackedUserOperation calldata _userOp,
+        uint256 paymasterDataLength,
         uint48 _validUntil,
         uint48 _validAfter,
         address _token,
@@ -242,8 +244,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             {
                 blob = abi.encode(
                     blob,
-                    // hashing over paymaster gasLimits + paymaster mode.
-                    keccak256(_userOp.paymasterAndData[PAYMASTER_VALIDATION_GAS_OFFSET:PAYMASTER_DATA_OFFSET + 1]),
+                    // hashing over all paymaster fields besides signature
+                    keccak256(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength]),
                     _userOp.preVerificationGas,
                     _userOp.gasFees
                 );

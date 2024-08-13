@@ -9,7 +9,7 @@ import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
+import {ERC20PostOpContext, BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
 import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
 import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
 
@@ -28,7 +28,6 @@ struct PaymasterData {
     address paymasterAddress;
     uint128 preVerificationGas;
     uint128 postOpGas;
-    uint8 mode;
     uint48 validUntil;
     uint48 validAfter;
 }
@@ -38,11 +37,13 @@ contract SingletonPaymasterV7Test is Test {
     uint8 immutable VERIFYING_MODE = 0;
     uint8 immutable ERC20_MODE = 1;
     uint256 immutable EXCHANGE_RATE = 3000 * 1e18;
+    uint128 immutable POSTOP_GAS = 50_000;
 
     address payable beneficiary;
     address paymasterOwner;
     address paymasterSigner;
     uint256 paymasterSignerKey;
+    uint256 unauthorizedSignerKey;
     address user;
     uint256 userKey;
 
@@ -61,6 +62,7 @@ contract SingletonPaymasterV7Test is Test {
         beneficiary = payable(makeAddr("beneficiary"));
         paymasterOwner = makeAddr("paymasterOwner");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
+        (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
 
         entryPoint = new EntryPoint();
@@ -122,29 +124,11 @@ contract SingletonPaymasterV7Test is Test {
     function test_RevertWhen_ERC20PaymasterSignatureInvalid() external {
         PackedUserOperation memory op = fillUserOp();
 
-        uint48 validUntil = 0;
-        uint48 validAfter = 0;
-        address erc20 = address(token);
-        uint128 postOpGas = 50_000;
-
         // sign with random private key to force false signature
-        (, uint256 unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), VERIFYING_MODE);
-        bytes32 hash = paymaster.getHash(op, validUntil, validAfter, erc20, postOpGas, EXCHANGE_RATE);
-        bytes memory sig = getSignature(hash, unauthorizedSignerKey);
 
-        op.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(500_000), // paymaster verifying gasLimit
-            uint128(500_000), // paymaster postOp gasLimit
-            ERC20_MODE,
-            validUntil, // validUntil
-            validAfter, // validAfter
-            erc20,
-            postOpGas, // token postOp gas
-            EXCHANGE_RATE,
-            sig
-        );
+        PaymasterData memory data = PaymasterData(address(paymaster), 50_000, 100_000, 0, 0);
+        op.paymasterAndData =
+            getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, op, unauthorizedSignerKey);
         op.signature = signUserOp(op, userKey);
 
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
@@ -154,24 +138,8 @@ contract SingletonPaymasterV7Test is Test {
     function test_RevertWhen_VerifyingPaymasterSignatureInvalid() external {
         PackedUserOperation memory op = fillUserOp();
 
-        uint48 validUntil = 0;
-        uint48 validAfter = 0;
-
-        // sign with random private key to force false signature
-        (, uint256 unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(0), uint128(0), VERIFYING_MODE);
-        bytes32 hash = paymaster.getHash(op, validUntil, validAfter);
-        bytes memory sig = getSignature(hash, unauthorizedSignerKey);
-
-        op.paymasterAndData = abi.encodePacked(
-            address(paymaster),
-            uint128(500_000), // paymaster verifying gas
-            uint128(500_000), // paymaster postOp gas
-            VERIFYING_MODE,
-            validUntil,
-            validAfter,
-            sig
-        );
+        PaymasterData memory data = PaymasterData(address(paymaster), 50_000, 100_000, 0, 0);
+        op.paymasterAndData = getVerifyingModeData(data, op, unauthorizedSignerKey);
         op.signature = signUserOp(op, userKey);
 
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
@@ -381,6 +349,113 @@ contract SingletonPaymasterV7Test is Test {
         paymaster.validatePaymasterUserOp(op, opHash, 0);
     }
 
+    // context should always be empty when used in verfiying mode
+    function test_veryfingValidatePaymasterUserOp(
+        uint48 _validUntil,
+        uint48 _validAfter,
+        uint128 _paymasterPostOpGas,
+        uint128 _paymasterVerificationGas
+    ) external {
+        PackedUserOperation memory op = fillUserOp();
+        PaymasterData memory data =
+            PaymasterData(address(paymaster), _paymasterVerificationGas, _paymasterPostOpGas, _validUntil, _validAfter);
+
+        op.paymasterAndData = getVerifyingModeData(data, op, paymasterSignerKey);
+        op.signature = signUserOp(op, userKey);
+        bytes32 opHash = getOpHash(op);
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0);
+        vm.assertEq(uint160(validationData), 0);
+        vm.assertEq(context, "", "context should always be empty when used in verifying mode");
+    }
+
+    // context and validation data should be properly encoded in Verifying mode.
+    // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run simulations)
+    function test_verifyingValidatePaymasterUserOp(uint48 _validUntil, uint48 _validAfter) external {
+        PackedUserOperation memory op = fillUserOp();
+        PaymasterData memory data = PaymasterData(address(paymaster), 50_000, 100_000, _validUntil, _validAfter);
+
+        // Test with correct signature
+        verifyingValidateOpHelper(op, data, paymasterSignerKey, 0);
+
+        // Test with incorrect signature
+        verifyingValidateOpHelper(op, data, unauthorizedSignerKey, 1);
+    }
+
+    function verifyingValidateOpHelper(
+        PackedUserOperation memory op,
+        PaymasterData memory data,
+        uint256 signerKey,
+        uint160 expectedSignature
+    ) internal {
+        op.paymasterAndData = getVerifyingModeData(data, op, signerKey);
+        op.signature = signUserOp(op, userKey);
+        bytes32 opHash = getOpHash(op);
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0);
+
+        vm.assertEq(uint160(validationData), expectedSignature, "unexpected signature");
+        vm.assertEq(uint48(validationData >> 160), data.validUntil);
+        vm.assertEq(uint48(validationData >> (48 + 160)), data.validAfter);
+        vm.assertEq(context, "", "context should always be empty when used in verifying mode");
+    }
+
+    // context and validation data should be properly populated and encoded in ERC-20 mode
+    // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run simulations)
+    function test_ERC20ValidatePaymasterUserOp(
+        uint48 _validUntil,
+        uint48 _validAfter,
+        address _token,
+        uint128 _postOpGas,
+        uint256 _exchangeRate
+    ) external {
+        vm.assume(_exchangeRate > 0);
+        vm.assume(_token != address(0));
+
+        PackedUserOperation memory op = fillUserOp();
+        PaymasterData memory data = PaymasterData(address(paymaster), 50_000, 100_000, _validUntil, _validAfter);
+
+        // Test with correct signature
+        validateERC20PaymasterUserOp(op, data, _token, _postOpGas, _exchangeRate, 0, paymasterSignerKey);
+
+        // Test with incorrect signature
+        validateERC20PaymasterUserOp(op, data, _token, _postOpGas, _exchangeRate, 1, unauthorizedSignerKey);
+    }
+
+    function validateERC20PaymasterUserOp(
+        PackedUserOperation memory op,
+        PaymasterData memory data,
+        address tokenAddress,
+        uint128 postOpGas,
+        uint256 exchangeRate,
+        uint160 expectedSignature,
+        uint256 signerKey
+    ) internal {
+        op.paymasterAndData = getERC20ModeData(data, tokenAddress, postOpGas, exchangeRate, op, signerKey);
+        op.signature = signUserOp(op, userKey);
+        bytes32 opHash = getOpHash(op);
+
+        vm.prank(address(entryPoint));
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0);
+
+        // Validation checks
+        vm.assertEq(uint160(validationData), expectedSignature, "unexpected signature");
+        vm.assertEq(uint48(validationData >> 160), data.validUntil);
+        vm.assertEq(uint48(validationData >> (48 + 160)), data.validAfter);
+
+        // Context checks
+        ERC20PostOpContext memory ctx = abi.decode(context, (ERC20PostOpContext));
+        vm.assertEq(ctx.sender, op.sender, "encoded context sender should equal userOperation.sender");
+        vm.assertEq(ctx.token, tokenAddress, "encoded context token should equal token");
+        vm.assertEq(ctx.exchangeRate, exchangeRate, "encoded context exchangeRate should equal exchangeRate");
+        vm.assertEq(ctx.postOpGas, postOpGas, "encoded context postOpGas should equal postOpGas");
+        vm.assertEq(ctx.userOpHash, opHash, "encoded context opHash should equal opHash");
+        vm.assertEq(ctx.maxFeePerGas, 0, "encoded context maxFeePerGas should equal to 0");
+        vm.assertEq(ctx.maxPriorityFeePerGas, 0, "encoded context maxPriorityFeePerGas should equal to 0");
+    }
+
     // HELPERS //
 
     function getSignedPaymasterData(uint8 mode, PackedUserOperation memory userOp)
@@ -392,62 +467,78 @@ contract SingletonPaymasterV7Test is Test {
             paymasterAddress: address(paymaster),
             preVerificationGas: 100_000,
             postOpGas: 50_000,
-            mode: mode,
             validUntil: 0,
             validAfter: 0
         });
 
-        userOp.paymasterAndData = abi.encodePacked(data.paymasterAddress, data.preVerificationGas, data.postOpGas, mode);
-
         if (mode == VERIFYING_MODE) {
-            return getVerifyingModeData(data, userOp);
+            return getVerifyingModeData(data, userOp, paymasterSignerKey);
         } else if (mode == ERC20_MODE) {
-            return getERC20ModeData(data, userOp);
+            return getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, userOp, paymasterSignerKey);
         }
 
         revert("unexpected mode");
     }
 
-    function getVerifyingModeData(PaymasterData memory data, PackedUserOperation memory userOp)
+    function getVerifyingModeData(PaymasterData memory data, PackedUserOperation memory userOp, uint256 signerKey)
         private
         view
         returns (bytes memory)
     {
+        userOp.paymasterAndData = abi.encodePacked(
+            data.paymasterAddress,
+            data.preVerificationGas,
+            data.postOpGas,
+            VERIFYING_MODE,
+            data.validUntil,
+            data.validAfter
+        );
         bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter);
-        bytes memory sig = getSignature(hash, paymasterSignerKey);
+        bytes memory sig = getSignature(hash, signerKey);
 
         return abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
             data.postOpGas,
-            data.mode,
+            VERIFYING_MODE,
             data.validUntil,
             data.validAfter,
             sig
         );
     }
 
-    function getERC20ModeData(PaymasterData memory data, PackedUserOperation memory userOp)
-        private
-        view
-        returns (bytes memory)
-    {
-        address erc20 = address(token);
-
-        uint128 postOpGas = 50_000;
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, EXCHANGE_RATE);
-        bytes memory sig = getSignature(hash, paymasterSignerKey);
+    function getERC20ModeData(
+        PaymasterData memory data,
+        address erc20,
+        uint128 postOpGas,
+        uint256 exchangeRate,
+        PackedUserOperation memory userOp,
+        uint256 signingKey
+    ) private view returns (bytes memory) {
+        userOp.paymasterAndData = abi.encodePacked(
+            data.paymasterAddress,
+            data.preVerificationGas,
+            data.postOpGas,
+            ERC20_MODE,
+            data.validUntil,
+            data.validAfter,
+            erc20,
+            postOpGas,
+            exchangeRate
+        );
+        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate);
+        bytes memory sig = getSignature(hash, signingKey);
 
         return abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
             data.postOpGas,
-            data.mode,
+            ERC20_MODE,
             data.validUntil,
             data.validAfter,
             erc20,
             postOpGas,
-            EXCHANGE_RATE,
+            exchangeRate,
             sig
         );
     }

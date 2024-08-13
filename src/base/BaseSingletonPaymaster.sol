@@ -115,6 +115,12 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /// @notice Mode indicating that the Paymaster is in ERC-20 mode.
     uint8 immutable ERC20_MODE = 1;
 
+    /// @notice The length of the ERC-20 config without singature.
+    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 80;
+
+    /// @notice The length of the verfiying config without singature.
+    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12;
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -177,7 +183,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @return ERC20PaymasterData The parsed paymaster configuration values.
      */
     function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20PaymasterData memory) {
-        if (_paymasterConfig.length < 80) {
+        if (_paymasterConfig.length < ERC20_PAYMASTER_DATA_LENGTH) {
             revert PaymasterConfigLengthInvalid();
         }
 
@@ -225,7 +231,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         pure
         returns (uint48, uint48, bytes calldata)
     {
-        if (_paymasterConfig.length < 12) {
+        if (_paymasterConfig.length < VERIFYING_PAYMASTER_DATA_LENGTH) {
             revert PaymasterConfigLengthInvalid();
         }
 
@@ -319,7 +325,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @param _actualGasCost The gas consumed by the userOperation.
      * @param _postOpGas The gas overhead of transfering the ERC-20 when making the postOp payment.
      * @param _actualUserOpFeePerGas The actual gas cost of the userOperation.
-     * @param _exchangeRate The token exchange rate (in wei) - how many wei one token (full token not 1 wei of token) is worth.
+     * @param _exchangeRate The token exchange rate - how many tokens one full ETH (1e18 wei) is worth.
      * @return uint256 The gasCost in token units.
      */
     function getCostInToken(
