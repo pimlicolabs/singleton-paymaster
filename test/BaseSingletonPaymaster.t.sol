@@ -100,4 +100,23 @@ contract BaseSingletonPaymasterTest is Test {
         paymaster.removeSigner(beneficiary);
         assertFalse(paymaster.signers(beneficiary));
     }
+
+    function testGetCostInToken(
+        uint256 _userOperationGasUsed,
+        uint256 _postOpGas,
+        uint256 _actualUserOpFeePerGas,
+        uint256 _exchangeRate
+    ) external view {
+        uint256 postOpGas = bound(_postOpGas, 21_000, 250_000);
+        uint256 actualUserOpFeePerGas = bound(_actualUserOpFeePerGas, 0.01 gwei, 5000 gwei);
+        uint256 userOperationGasUsed = bound(_userOperationGasUsed, 21_000, 30_000_000);
+
+        // exchangeRate of 1e6 means 1 full token = 0.000000000001 ETH (significnalty lower than most memecoins)
+        // exchangeRate of 1e50 means 1 full token = 1e32 ETH (significnalty higher than most coins)
+        uint256 exchangeRate = bound(_exchangeRate, 1e6, 1e50);
+
+        uint256 actualGasCost = userOperationGasUsed * userOperationGasUsed;
+        uint256 costInToken = paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
+        vm.assertGt(costInToken, 0);
+    }
 }

@@ -319,7 +319,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @param _actualGasCost The gas consumed by the userOperation.
      * @param _postOpGas The gas overhead of transfering the ERC-20 when making the postOp payment.
      * @param _actualUserOpFeePerGas The actual gas cost of the userOperation.
-     * @param _exchangeRate The exchange rate of the token (in wei).
+     * @param _exchangeRate The token exchange rate (in wei) - how many wei one token (full token not 1 wei of token) is worth.
      * @return uint256 The gasCost in token units.
      */
     function getCostInToken(
