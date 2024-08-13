@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {Test, console} from "forge-std/Test.sol";
-
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
@@ -64,6 +62,14 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     /// @param nonce The nonce used in the withdraw request.
     error NonceInvalid(uint256 nonce);
 
+    /// @notice One of the precalls reverted.
+    /// @param revertReason The revert bytes.
+    error PreCallReverted(bytes revertReason);
+
+    /// @notice One of the postcalls reverted.
+    /// @param revertReason The revert bytes.
+    error PostCallReverted(bytes revertReason);
+
     /// @notice Emitted when a withdraw request has been fulfilled.
     event WithdrawRequestFulfilled(address receiver, uint256 amount, address asset, uint256 nonce);
 
@@ -112,9 +118,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
             (bool success, bytes memory result) = to.call{value: value}(data);
 
             if (!success) {
-                assembly {
-                    revert(add(32, result), mload(result))
-                }
+                revert PreCallReverted(result);
             }
         }
 
@@ -134,9 +138,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
             (bool success, bytes memory result) = to.call{value: value}(data);
 
             if (!success) {
-                assembly {
-                    revert(add(result, 32), mload(result))
-                }
+                revert PostCallReverted(result);
             }
         }
 

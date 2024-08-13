@@ -241,7 +241,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
         withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
         vm.prank(RECIPIENT);
-        vm.expectRevert(abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage));
+        bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
+        vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PreCallReverted.selector, revertBytes));
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
     }
 
@@ -272,7 +273,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.deal(address(magicSpendPlusMinusHalf), 100 ether);
         vm.prank(RECIPIENT);
-        vm.expectRevert(abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage));
+        bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
+        vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PostCallReverted.selector, revertBytes));
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
     }
 
