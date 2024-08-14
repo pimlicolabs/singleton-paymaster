@@ -369,6 +369,54 @@ contract SingletonPaymasterV6Test is Test {
         validateERC20PaymasterUserOp(op, data, _token, _postOpGas, _exchangeRate, 1, unauthorizedSignerKey);
     }
 
+    // test that the treasury receives funds when postOp is called
+    function test_postOpCalculation(
+        uint256 _exchangeRate,
+        uint128 _postOpGas,
+        uint256 _userOperationGasUsed,
+        uint256 _maxFeePerGas,
+        uint256 _maxPriorityFeePerGas
+    ) external {
+        token.sudoMint(address(account), 1e50);
+        token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
+
+        uint128 postOpGas = uint128(bound(_postOpGas, 21_000, 250_000));
+        uint256 userOperationGasUsed = bound(_userOperationGasUsed, 21_000, 30_000_000);
+        uint256 exchangeRate = bound(_exchangeRate, 1e6, 1e20);
+        uint256 maxFeePerGas = bound(_maxFeePerGas, 0.01 gwei, 5000 gwei);
+        uint256 maxPriorityFeePerGas = bound(_maxPriorityFeePerGas, 0.01 gwei, 5000 gwei);
+        vm.assume(maxFeePerGas >= maxPriorityFeePerGas);
+
+        uint256 actualUserOpFeePerGas;
+        if (maxFeePerGas == maxPriorityFeePerGas) {
+            // chains that only support legacy (pre EIP-1559 transactions)
+            actualUserOpFeePerGas = maxFeePerGas;
+        } else {
+            actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
+        }
+
+        uint256 actualGasCost = userOperationGasUsed * actualUserOpFeePerGas;
+
+        bytes memory context = abi.encode(
+            ERC20PostOpContext({
+                sender: address(account),
+                token: address(token),
+                exchangeRate: exchangeRate,
+                postOpGas: postOpGas,
+                userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
+                maxFeePerGas: maxFeePerGas,
+                maxPriorityFeePerGas: maxPriorityFeePerGas
+            })
+        );
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost);
+        uint256 expectedCostInToken =
+            paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
+
+        vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
+    }
+
     function validateERC20PaymasterUserOp(
         UserOperation memory op,
         PaymasterData memory data,
