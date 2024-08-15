@@ -137,7 +137,10 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @param _entryPoint The entryPoint address.
      * @param _owner The initial contract owner.
      */
-    constructor(address _entryPoint, address _owner) BasePaymaster(_entryPoint, _owner) {
+    constructor(address _entryPoint, address _owner, address[] memory _signers)
+        BasePaymaster(_entryPoint, _owner)
+        MultiSigner(_signers)
+    {
         treasury = _owner;
     }
 

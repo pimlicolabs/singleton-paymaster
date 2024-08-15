@@ -41,14 +41,14 @@ contract BasePaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
 
         vm.deal(paymasterOwner, 100e18);
         paymaster.deposit{value: INITIAL_PAYMASTER_DEPOSIT}();
     }
 
     function testConstructorSuccess() external {
-        new SingletonPaymasterV7(address(0), address(1));
+        new SingletonPaymasterV7(address(0), address(1), new address[](0));
     }
 
     function testGetDeposit() external view {

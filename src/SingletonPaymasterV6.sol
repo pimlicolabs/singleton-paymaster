@@ -35,7 +35,9 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     /*                        CONSTRUCTOR                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    constructor(address _entryPoint, address _owner) BaseSingletonPaymaster(_entryPoint, _owner) {}
+    constructor(address _entryPoint, address _owner, address[] memory _signers)
+        BaseSingletonPaymaster(_entryPoint, _owner, _signers)
+    {}
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.6 ERC-4337 PAYMASTER OVERRIDES        */

@@ -68,7 +68,7 @@ contract SingletonPaymasterV6Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
+        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, new address[](0));
         paymaster.deposit{value: 100e18}();
 
         vm.prank(paymasterOwner);
@@ -76,7 +76,7 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function testDeployment() external {
-        SingletonPaymasterV6 subject = new SingletonPaymasterV6(address(entryPoint), paymasterOwner);
+        SingletonPaymasterV6 subject = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, new address[](0));
         vm.prank(paymasterOwner);
         subject.addSigner(paymasterSigner);
 

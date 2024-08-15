@@ -26,8 +26,17 @@ abstract contract MultiSigner is Ownable {
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Mapping of valid signers.
-    /// @dev No signers are initialized at the time of contract creation.
     mapping(address account => bool isValidSigner) public signers;
+
+    /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
+    /*                       CONSTRUCTOR                          */
+    /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
+
+    constructor(address[] memory _initialSigners) {
+        for (uint256 i = 0; i < _initialSigners.length; i++) {
+            signers[_initialSigners[i]] = true;
+        }
+    }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      ADMIN FUNCTIONS                       */

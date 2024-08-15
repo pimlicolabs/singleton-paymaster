@@ -24,7 +24,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
     function setUp() external {
         (signer, signerKey) = makeAddrAndKey("signer");
 
-        magicSpendPlusMinusHalf = new MagicSpendPlusMinusHalf(OWNER);
+        magicSpendPlusMinusHalf = new MagicSpendPlusMinusHalf(OWNER, new address[](0));
         token = new TestERC20(18);
         forceReverter = new ForceReverter();
 
