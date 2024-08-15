@@ -134,7 +134,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     ) internal returns (bytes memory, uint256) {
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_userOp, validUntil, validAfter));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(VERIFYING_MODE, _userOp));
         address recoveredSigner = ECDSA.recover(hash, signature);
 
         bool isSignatureValid = signers[recoveredSigner];
@@ -158,9 +158,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     ) internal view returns (bytes memory, uint256) {
         ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(
-            getHash(_userOp, cfg.validUntil, cfg.validAfter, cfg.token, cfg.postOpGas, cfg.exchangeRate)
-        );
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(ERC20_MODE, _userOp));
         address recoveredSigner = ECDSA.recover(hash, cfg.signature);
 
         bool isSignatureValid = signers[recoveredSigner];
@@ -177,88 +175,42 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /**
      * @notice Hashses the userOperation data when used in ERC-20 mode.
      * @param _userOp The user operation data.
-     * @param _validUntil The timestamp until which the user operation is valid.
-     * @param _validAfter The timestamp after which the user operation is valid.
-     * @param _token The payment token.
-     * @param _exchangeRate The token exchange rate used during payment calculation.
-     * @param _postOpGas The gas to cover the overhead of the postOp transferFrom call.
+     * @param _mode The mode that we want to get the hash for.
      * @return bytes32 The hash that the signer should sign over.
      */
-    function getHash(
-        PackedUserOperation calldata _userOp,
-        uint48 _validUntil,
-        uint48 _validAfter,
-        address _token,
-        uint128 _postOpGas,
-        uint256 _exchangeRate
-    ) public view returns (bytes32) {
-        return
-            _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH, _validUntil, _validAfter, _token, _postOpGas, _exchangeRate);
-    }
-
-    /**
-     * @notice Hashses the userOperation data when used in verifying mode.
-     * @param _userOp The user operation data.
-     * @param _validUntil The timestamp until which the user operation is valid.
-     * @param _validAfter The timestamp after which the user operation is valid.
-     * @return bytes32 The hash that the signer should sign over.
-     */
-    function getHash(PackedUserOperation calldata _userOp, uint48 _validUntil, uint48 _validAfter)
-        public
-        view
-        returns (bytes32)
-    {
-        return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH, _validUntil, _validAfter, address(0), 0, 0);
+    function getHash(uint8 _mode, PackedUserOperation calldata _userOp) public view returns (bytes32) {
+        if (_mode == VERIFYING_MODE) {
+            return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH);
+        } else {
+            return _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH);
+        }
     }
 
     /**
      * @notice Internal helper that hashes the user operation data.
-     * @dev In verifying mode, _token, _exchangeRate, and _postOpGas are always 0.
-     * @dev In paymaster mode, _fundAmount is always 0.
-     * @param _userOp The user operation data.
-     * @param _validUntil The timestamp until which the user operation is valid.
-     * @param _validAfter The timestamp after which the user operation is valid.
-     * @param _exchangeRate The exchange used during cost calculation.
+     * @dev We hash over all fields in paymasterAndData but the paymaster signature.
+     * @param paymasterDataLength The paymasterData length.
      * @return bytes32 The hash that the signer should sign over.
      */
-    function _getHash(
-        PackedUserOperation calldata _userOp,
-        uint256 paymasterDataLength,
-        uint48 _validUntil,
-        uint48 _validAfter,
-        address _token,
-        uint128 _postOpGas,
-        uint256 _exchangeRate
-    ) internal view returns (bytes32) {
-        bytes32 userOpHash;
-        {
-            // inner scopes needed to avoid stack too deep error.
-            bytes memory blob;
-            {
-                blob = abi.encode(
-                    _userOp.getSender(),
-                    _userOp.nonce,
-                    keccak256(_userOp.initCode),
-                    keccak256(_userOp.callData),
-                    _userOp.accountGasLimits
-                );
-            }
-            {
-                blob = abi.encode(
-                    blob,
-                    // hashing over all paymaster fields besides signature
-                    keccak256(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength]),
-                    _userOp.preVerificationGas,
-                    _userOp.gasFees
-                );
-            }
-            userOpHash = keccak256(blob);
-        }
-
-        return keccak256(
+    function _getHash(PackedUserOperation calldata _userOp, uint256 paymasterDataLength)
+        internal
+        view
+        returns (bytes32)
+    {
+        bytes32 userOpHash = keccak256(
             abi.encode(
-                userOpHash, block.chainid, address(this), _validUntil, _validAfter, _exchangeRate, _token, _postOpGas
+                _userOp.getSender(),
+                _userOp.nonce,
+                keccak256(_userOp.initCode),
+                keccak256(_userOp.callData),
+                _userOp.accountGasLimits,
+                // hashing over all paymaster fields besides signature
+                keccak256(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength]),
+                _userOp.preVerificationGas,
+                _userOp.gasFees
             )
         );
+
+        return keccak256(abi.encode(userOpHash, block.chainid, address(this)));
     }
 }
