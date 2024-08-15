@@ -46,7 +46,7 @@ contract BaseSingletonPaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
         paymaster.deposit{value: INITIAL_DEPOSIT}();
 
         vm.prank(paymasterOwner);

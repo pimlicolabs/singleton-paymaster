@@ -69,7 +69,7 @@ contract SingletonPaymasterV7Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
         paymaster.deposit{value: 100e18}();
 
         vm.prank(paymasterOwner);
@@ -77,7 +77,7 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     function testDeployment() external {
-        SingletonPaymasterV7 subject = new SingletonPaymasterV7(address(entryPoint), paymasterOwner);
+        SingletonPaymasterV7 subject = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
         vm.prank(paymasterOwner);
         subject.addSigner(paymasterSigner);
 
@@ -493,7 +493,91 @@ contract SingletonPaymasterV7Test is Test {
         vm.assertEq(ctx.maxPriorityFeePerGas, 0, "encoded context maxPriorityFeePerGas should equal to 0");
     }
 
+    function testValidateSignatureCorrectness() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE);
+        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE);
+    }
+
     // HELPERS //
+
+    function flipUserOperationBitsAndValidateSignature(uint8 _mode) internal {
+        PackedUserOperation memory op = fillUserOp();
+        op.paymasterAndData = getSignedPaymasterData(_mode, op);
+        op.signature = signUserOp(op, userKey);
+
+        checkIsPaymasterSignatureValid(op, true);
+
+        // flip each bit in userOperation and check that signature is invalid
+        for (uint256 bitPosition = 0; bitPosition < 256; bitPosition++) {
+            uint256 mask = 1 << bitPosition;
+
+            if (bitPosition < 160) {
+                op.sender = address(bytes20(op.sender) ^ bytes20(uint160(mask)));
+                checkIsPaymasterSignatureValid(op, false);
+                op.sender = address(bytes20(op.sender) ^ bytes20(uint160(mask)));
+            }
+
+            op.nonce = uint256(bytes32(op.nonce) ^ bytes32(mask));
+            checkIsPaymasterSignatureValid(op, false);
+            op.nonce = uint256(bytes32(op.nonce) ^ bytes32(mask));
+
+            op.accountGasLimits = bytes32(op.accountGasLimits) ^ bytes32(mask);
+            checkIsPaymasterSignatureValid(op, false);
+            op.accountGasLimits = bytes32(op.accountGasLimits) ^ bytes32(mask);
+
+            op.preVerificationGas = uint256(bytes32(op.preVerificationGas) ^ bytes32(mask));
+            checkIsPaymasterSignatureValid(op, false);
+            op.preVerificationGas = uint256(bytes32(op.preVerificationGas) ^ bytes32(mask));
+
+            op.gasFees = bytes32(op.gasFees) ^ bytes32(mask);
+            checkIsPaymasterSignatureValid(op, false);
+            op.gasFees = bytes32(op.gasFees) ^ bytes32(mask);
+        }
+
+        // check calldata
+        for (uint256 byteIndex = 0; byteIndex < op.callData.length; byteIndex++) {
+            for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
+                uint256 mask = 1 << bitPosition;
+
+                op.callData[byteIndex] = bytes1(uint8(op.callData[byteIndex]) ^ uint8(mask));
+                checkIsPaymasterSignatureValid(op, false);
+                op.callData[byteIndex] = bytes1(uint8(op.callData[byteIndex]) ^ uint8(mask));
+            }
+        }
+
+        // check initCode
+        for (uint256 byteIndex = 0; byteIndex < op.initCode.length; byteIndex++) {
+            for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
+                uint256 mask = 1 << bitPosition;
+
+                op.initCode[byteIndex] = bytes1(uint8(op.initCode[byteIndex]) ^ uint8(mask));
+                checkIsPaymasterSignatureValid(op, false);
+                op.initCode[byteIndex] = bytes1(uint8(op.initCode[byteIndex]) ^ uint8(mask));
+            }
+        }
+
+        for (uint256 byteIndex = 0; byteIndex < op.paymasterAndData.length - 66; byteIndex++) {
+            for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
+                uint256 mask = 1 << bitPosition;
+
+                // we don't want to flip the mode byte
+                if (byteIndex == 20 + 32) {
+                    continue;
+                }
+
+                op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
+                checkIsPaymasterSignatureValid(op, false);
+                op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
+            }
+        }
+    }
+
+    function checkIsPaymasterSignatureValid(PackedUserOperation memory op, bool isSignatureValid) internal {
+        bytes32 opHash = getOpHash(op);
+        vm.prank(address(entryPoint));
+        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0);
+        assertEq(uint160(validationData), isSignatureValid ? 0 : 1);
+    }
 
     function getSignedPaymasterData(uint8 mode, PackedUserOperation memory userOp)
         private
@@ -530,7 +614,7 @@ contract SingletonPaymasterV7Test is Test {
             data.validUntil,
             data.validAfter
         );
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter);
+        bytes32 hash = paymaster.getHash(VERIFYING_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
         return abi.encodePacked(
@@ -563,7 +647,7 @@ contract SingletonPaymasterV7Test is Test {
             postOpGas,
             exchangeRate
         );
-        bytes32 hash = paymaster.getHash(userOp, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate);
+        bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signingKey);
 
         return abi.encodePacked(

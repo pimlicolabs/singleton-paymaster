@@ -76,7 +76,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     /// @notice Mappings keeping track of already used nonces per user to prevent replays of withdraw requests.
     mapping(address user => mapping(uint256 nonce => bool used)) public nonceUsed;
 
-    constructor(address _owner) Ownable(_owner) {}
+    constructor(address _owner, address[] memory _signers) Ownable(_owner) MultiSigner(_signers) {}
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                     EXTERNAL FUNCTIONS                     */
