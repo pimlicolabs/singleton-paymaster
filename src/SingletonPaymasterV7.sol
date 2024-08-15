@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.26;
 
 import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";

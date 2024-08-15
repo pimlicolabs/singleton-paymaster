@@ -1,5 +1,5 @@
 // SPDX-License-Identifier: MIT
-pragma solidity ^0.8.23;
+pragma solidity ^0.8.26;
 
 import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
 import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
