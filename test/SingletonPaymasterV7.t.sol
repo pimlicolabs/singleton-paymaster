@@ -556,7 +556,18 @@ contract SingletonPaymasterV7Test is Test {
             }
         }
 
-        for (uint256 byteIndex = 0; byteIndex < op.paymasterAndData.length - 66; byteIndex++) {
+        uint256 paymasterConfigLength = 52;
+
+        if (_mode == ERC20_MODE) {
+            paymasterConfigLength += 80;
+        }
+
+        if (_mode == VERIFYING_MODE) {
+            paymasterConfigLength += 12;
+        }
+
+        // check paymasterAndData
+        for (uint256 byteIndex = 0; byteIndex < paymasterConfigLength; byteIndex++) {
             for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
                 uint256 mask = 1 << bitPosition;
 

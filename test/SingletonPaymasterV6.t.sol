@@ -524,20 +524,31 @@ contract SingletonPaymasterV6Test is Test {
             }
         }
 
-        //for (uint256 byteIndex = 0; byteIndex < op.paymasterAndData.length - 66; byteIndex++) {
-        //    for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
-        //        uint256 mask = 1 << bitPosition;
+        uint256 paymasterConfigLength = 20;
 
-        //        // we don't want to flip the mode byte
-        //        if (byteIndex == 20) {
-        //            continue;
-        //        }
+        if (_mode == ERC20_MODE) {
+            paymasterConfigLength += 80;
+        }
 
-        //        op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
-        //        checkIsPaymasterSignatureValid(op, false);
-        //        op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
-        //    }
-        //}
+        if (_mode == VERIFYING_MODE) {
+            paymasterConfigLength += 12;
+        }
+
+        // check paymasterAndData
+        for (uint256 byteIndex = 0; byteIndex < op.paymasterAndData.length - 65; byteIndex++) {
+            for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
+                uint256 mask = 1 << bitPosition;
+
+                // we don't want to flip the mode byte
+                if (byteIndex == 20) {
+                    continue;
+                }
+
+                op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
+                checkIsPaymasterSignatureValid(op, false);
+                op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
+            }
+        }
     }
 
     function checkIsPaymasterSignatureValid(UserOperation memory op, bool isSignatureValid) internal {

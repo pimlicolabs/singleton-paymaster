@@ -68,28 +68,6 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     }
 
     /**
-     * @notice Handles ERC-20 token payment.
-     * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
-     * @param _context The encoded ERC-20 paymaster context.
-     * @param _actualGasCost The totla gas cost (in wei) of this userOperation.
-     * @param _actualUserOpFeePerGas The actual gas price of the userOperation.
-     */
-    function _postOp(
-        PostOpMode, /* mode */
-        bytes calldata _context,
-        uint256 _actualGasCost,
-        uint256 _actualUserOpFeePerGas
-    ) internal {
-        (address sender, address token, uint256 exchangeRate, uint128 postOpGas, bytes32 userOpHash,,) =
-            _parsePostOpContext(_context);
-
-        uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
-
-        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-        emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
-    }
-
-    /**
      * @notice Internal helper to parse and validate the userOperation's paymasterAndData.
      * @param _userOp The userOperation.
      * @param _userOpHash The userOperation hash.
@@ -166,6 +144,28 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         bytes memory context = _createPostOpContext(_userOp, cfg.token, cfg.exchangeRate, cfg.postOpGas, _userOpHash);
         return (context, validationData);
+    }
+
+    /**
+     * @notice Handles ERC-20 token payment.
+     * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
+     * @param _context The encoded ERC-20 paymaster context.
+     * @param _actualGasCost The totla gas cost (in wei) of this userOperation.
+     * @param _actualUserOpFeePerGas The actual gas price of the userOperation.
+     */
+    function _postOp(
+        PostOpMode, /* mode */
+        bytes calldata _context,
+        uint256 _actualGasCost,
+        uint256 _actualUserOpFeePerGas
+    ) internal {
+        (address sender, address token, uint256 exchangeRate, uint128 postOpGas, bytes32 userOpHash,,) =
+            _parsePostOpContext(_context);
+
+        uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
+
+        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
+        emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

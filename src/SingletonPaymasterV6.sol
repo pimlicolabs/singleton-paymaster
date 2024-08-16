@@ -60,49 +60,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     }
 
     /**
-     * @notice Handles ERC-20 token payment.
-     * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
-     * @param _mode The postOp mode.
-     * @param _context The encoded ERC-20 paymaster context.
-     * @param _actualGasCost The total gas cost (in wei) of this userOperation.
-     */
-    function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost) internal {
-        (
-            address sender,
-            address token,
-            uint256 exchangeRate,
-            uint128 postOpGas,
-            bytes32 userOpHash,
-            uint256 maxFeePerGas,
-            uint256 maxPriorityFeePerGas
-        ) = _parsePostOpContext(_context);
-
-        uint256 actualUserOpFeePerGas;
-        if (maxFeePerGas == maxPriorityFeePerGas) {
-            // chains that only support legacy (pre EIP-1559 transactions)
-            actualUserOpFeePerGas = maxFeePerGas;
-        } else {
-            actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
-        }
-
-        uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
-
-        if (_mode != PostOpMode.postOpReverted) {
-            // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
-            // it will revert the whole bundle instead of just force failing the userOperation.
-            // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
-            // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
-            bool success = SafeTransferLib.trySafeTransferFrom(token, sender, treasury, costInToken);
-
-            if (!success) {
-                revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
-            }
-
-            emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
-        }
-    }
-
-    /**
      * @notice Internal helper to parse and validate the userOperation's paymasterAndData.
      * @param _userOp The userOperation.
      * @param _userOpHash The userOperation hash.
@@ -115,20 +72,18 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         (uint8 mode, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
-        if (mode > 1) {
+        if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
             revert PaymasterModeInvalid();
         }
 
         bytes memory context;
         uint256 validationData;
 
-        // Verifying mode
-        if (mode == 0) {
+        if (mode == VERIFYING_MODE) {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        // ERC-20 mode
-        if (mode == 1) {
+        if (mode == ERC20_MODE) {
             (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
 
@@ -183,6 +138,49 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         return (context, validationData);
     }
 
+    /**
+     * @notice Handles ERC-20 token payment.
+     * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
+     * @param _mode The postOp mode.
+     * @param _context The encoded ERC-20 paymaster context.
+     * @param _actualGasCost The total gas cost (in wei) of this userOperation.
+     */
+    function _postOp(PostOpMode _mode, bytes calldata _context, uint256 _actualGasCost) internal {
+        (
+            address sender,
+            address token,
+            uint256 exchangeRate,
+            uint128 postOpGas,
+            bytes32 userOpHash,
+            uint256 maxFeePerGas,
+            uint256 maxPriorityFeePerGas
+        ) = _parsePostOpContext(_context);
+
+        uint256 actualUserOpFeePerGas;
+        if (maxFeePerGas == maxPriorityFeePerGas) {
+            // chains that only support legacy (pre EIP-1559 transactions)
+            actualUserOpFeePerGas = maxFeePerGas;
+        } else {
+            actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
+        }
+
+        uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
+
+        if (_mode != PostOpMode.postOpReverted) {
+            // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
+            // it will revert the whole bundle instead of just force failing the userOperation.
+            // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
+            // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
+            bool success = SafeTransferLib.trySafeTransferFrom(token, sender, treasury, costInToken);
+
+            if (!success) {
+                revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
+            }
+
+            emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
+        }
+    }
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      PUBLIC HELPERS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -212,15 +210,15 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             abi.encode(
                 _userOp.sender,
                 _userOp.nonce,
-                keccak256(_userOp.initCode),
-                keccak256(_userOp.callData),
                 _userOp.callGasLimit,
                 _userOp.verificationGasLimit,
                 _userOp.preVerificationGas,
-                // hashing over all paymaster fields besides signature
-                uint8(bytes1(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength])),
                 _userOp.maxFeePerGas,
-                _userOp.maxPriorityFeePerGas
+                _userOp.maxPriorityFeePerGas,
+                keccak256(_userOp.callData),
+                keccak256(_userOp.initCode),
+                // hashing over all paymaster fields besides signature
+                keccak256(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength])
             )
         );
 
