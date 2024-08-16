@@ -25,7 +25,6 @@ using UserOperationLib for PackedUserOperation;
 /// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC-20.
 /// In ERC-20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
 /// In Verifying mode, the paymaster sponsors a UserOperation and deducts prepaid balance from the user's Pimlico balance.
-/// In Verifying mode, the user also has the option to fund their smart account using their Pimlico balance.
 /// @dev Inherits from BaseSingletonPaymaster.
 /// @custom:security-contact security@pimlico.io
 contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
@@ -118,7 +117,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        emit UserOperationSponsored(_userOpHash, _userOp.getSender(), 0, address(0), 0, 0);
+        emit UserOperationSponsored(_userOpHash, _userOp.getSender(), VERIFYING_MODE, address(0), 0, 0);
         return ("", validationData);
     }
 
@@ -201,13 +200,13 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             abi.encode(
                 _userOp.getSender(),
                 _userOp.nonce,
+                _userOp.accountGasLimits,
+                _userOp.preVerificationGas,
+                _userOp.gasFees,
                 keccak256(_userOp.initCode),
                 keccak256(_userOp.callData),
-                _userOp.accountGasLimits,
                 // hashing over all paymaster fields besides signature
-                keccak256(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength]),
-                _userOp.preVerificationGas,
-                _userOp.gasFees
+                keccak256(_userOp.paymasterAndData[:PAYMASTER_DATA_OFFSET + paymasterDataLength])
             )
         );
 

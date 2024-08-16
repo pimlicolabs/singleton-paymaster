@@ -21,7 +21,6 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 /// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC-20.
 /// In ERC-20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
 /// In Verifying mode, the paymaster sponsors a UserOperation from the user's Pimlico balance.
-/// In Verifying mode, the user also has the option to fund their smart account using their Pimlico balance.
 /// @dev Inherits from BaseSingletonPaymaster.
 /// @custom:security-contact security@pimlico.io
 contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
@@ -110,7 +109,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        emit UserOperationSponsored(_userOpHash, _userOp.sender, 0, address(0), 0, 0);
+        emit UserOperationSponsored(_userOpHash, _userOp.sender, VERIFYING_MODE, address(0), 0, 0);
         return ("", validationData);
     }
 

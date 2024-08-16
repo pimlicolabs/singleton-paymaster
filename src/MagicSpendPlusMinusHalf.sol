@@ -15,7 +15,7 @@ import {MultiSigner} from "./base/MultiSigner.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
-/// @notice Helper struct that represents a call to be made.
+/// @notice Helper struct that represents a call to make.
 struct CallStruct {
     address to;
     uint256 value;
@@ -32,7 +32,7 @@ struct WithdrawRequest {
     uint256 nonce;
     /// @dev Calls that will be made before the funds are sent to the user.
     CallStruct[] preCalls;
-    /// @dev Calls that will be made before the funds are sent to the user.
+    /// @dev Calls that will be made after the funds are sent to the user.
     CallStruct[] postCalls;
     /// @dev The time in which the request is valid until.
     uint48 validUntil;
