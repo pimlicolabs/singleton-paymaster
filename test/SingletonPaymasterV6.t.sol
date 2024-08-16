@@ -535,7 +535,7 @@ contract SingletonPaymasterV6Test is Test {
         }
 
         // check paymasterAndData
-        for (uint256 byteIndex = 0; byteIndex < op.paymasterAndData.length - 65; byteIndex++) {
+        for (uint256 byteIndex = 0; byteIndex < paymasterConfigLength; byteIndex++) {
             for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
                 uint256 mask = 1 << bitPosition;
 
