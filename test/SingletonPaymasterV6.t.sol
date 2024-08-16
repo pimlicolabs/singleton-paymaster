@@ -524,7 +524,7 @@ contract SingletonPaymasterV6Test is Test {
             }
         }
 
-        uint256 paymasterConfigLength = 52;
+        uint256 paymasterConfigLength = 20;
 
         if (_mode == ERC20_MODE) {
             paymasterConfigLength += 80;
