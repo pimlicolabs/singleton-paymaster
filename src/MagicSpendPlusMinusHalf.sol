@@ -12,6 +12,8 @@ import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 import {MultiSigner} from "./base/MultiSigner.sol";
+import {StakeManager} from "./base/StakeManager.sol";
+import {NonceManager} from "./base/NonceManager.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
@@ -24,10 +26,12 @@ struct CallStruct {
 
 /// @notice Signed withdraw request allowing users to withdraw funds from the paymaster's EntryPoint deposit.
 struct WithdrawRequest {
+    /// @dev The account which stake will be decreased.
+    address account;
     /// @dev Asset that user wants to withdraw.
     address asset;
     /// @dev The requested amount to withdraw.
-    uint256 amount;
+    uint128 amount;
     /// @dev Unique nonce used to prevent replays.
     uint256 nonce;
     /// @dev Calls that will be made before the funds are sent to the user.
@@ -48,7 +52,7 @@ struct WithdrawRequest {
 /// @dev Inherits from MultiSigner.
 /// @dev Inherits from Ownable.
 /// @custom:security-contact security@pimlico.io
-contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
+contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeManager {
     /// @notice Thrown when the request was submitted past its validUntil.
     error RequestExpired();
 
@@ -107,6 +111,21 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
         // check withdraw request params
         if (nonceUsed[recipient][withdrawRequest.nonce]) {
             revert NonceInvalid(withdrawRequest.nonce);
+        }
+
+        // Check that the account has enough stake
+        bool stakeDecreased = _decreaseStake(
+            withdrawRequest.account,
+            withdrawRequest.asset,
+            withdrawRequest.amount
+        );
+
+        if (!stakeDecreased) {
+            if (withdrawRequest.asset == ETH) {
+                revert SafeTransferLib.ETHTransferFailed();
+            } else {
+                revert SafeTransferLib.TransferFailed();
+            }
         }
 
         // run pre calls
