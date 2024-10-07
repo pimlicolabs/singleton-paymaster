@@ -10,10 +10,13 @@ import {ForceReverter} from "./utils/ForceReverter.sol";
 import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+
 contract MagicSpendPlusMinusHalfTest is Test {
     address immutable OWNER = makeAddr("owner");
     address immutable RECIPIENT = makeAddr("recipient");
     address immutable BANK = makeAddr("bank");
+
+    error FailedToAddStake(bytes reason);
 
     address signer;
     uint256 signerKey;
@@ -45,9 +48,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         address asset = address(0);
         uint256 nonce = 0;
 
-        // Deposit funds to the contract
-        vm.prank(BANK);
-        address(magicSpendPlusMinusHalf).call{value: amount}("");
+        _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             account: BANK,
@@ -75,9 +76,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         address asset = address(token);
         uint256 nonce = 0;
 
-        // Deposit funds to the contract
-        vm.prank(BANK);
-        magicSpendPlusMinusHalf.addStake(asset, amount, 60);
+        _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             account: BANK,
@@ -109,9 +108,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.warp(500);
 
-        // Deposit funds to the contract
-        vm.prank(BANK);
-        address(magicSpendPlusMinusHalf).call{value: amount}("");
+        _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             account: BANK,
@@ -156,9 +153,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         uint256 nonce = 0;
         (, uint256 unauthorizedSingerKey) = makeAddrAndKey("unauthorizedSinger");
 
-        // Deposit funds to the contract
-        vm.prank(BANK);
-        address(magicSpendPlusMinusHalf).call{value: amount}("");
+        _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             account: BANK,
@@ -185,9 +180,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         address asset = address(0);
         uint256 nonce = 0;
 
-        // Deposit funds to the contract
-        vm.prank(BANK);
-        address(magicSpendPlusMinusHalf).call{value: amount}("");
+        _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
             account: BANK,
@@ -216,104 +209,105 @@ contract MagicSpendPlusMinusHalfTest is Test {
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
     }
 
-    // function test_RevertWhen_WithdrawRequestTransferFailed() external {
-    //     uint128 amount = 5 ether;
-    //     address asset = address(0);
-    //     uint256 nonce = 0;
+    function test_RevertWhen_WithdrawRequestTransferFailed() external {
+        uint128 amount = 5 ether;
+        address asset = address(0);
+        uint256 nonce = 0;
 
-    //     WithdrawRequest memory withdrawRequest = WithdrawRequest({
-    //         account: BANK,
-    //         amount: amount,
-    //         asset: asset,
-    //         nonce: nonce,
-    //         preCalls: new CallStruct[](0),
-    //         postCalls: new CallStruct[](0),
-    //         validUntil: 0,
-    //         validAfter: 0,
-    //         signature: ""
-    //     });
-    //     withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            account: BANK,
+            amount: amount,
+            asset: asset,
+            nonce: nonce,
+            preCalls: new CallStruct[](0),
+            postCalls: new CallStruct[](0),
+            validUntil: 0,
+            validAfter: 0,
+            signature: ""
+        });
+        withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
-    //     // should throw when ETH withdraw request could not be fulfilled due to insufficient funds.
-    //     vm.prank(RECIPIENT);
-    //     vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.ETHTransferFailed.selector));
-    //     magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
+        // should throw when ETH withdraw request could not be fulfilled due to insufficient funds.
+        vm.prank(RECIPIENT);
+        vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.ETHTransferFailed.selector));
+        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
 
-    //     // should throw when ERC20 withdraw request could not be fulfilled due to insufficient funds.
-    //     withdrawRequest.asset = address(token);
-    //     withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
-    //     vm.prank(RECIPIENT);
-    //     vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.TransferFailed.selector));
-    //     magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
-    // }
+        // should throw when ERC20 withdraw request could not be fulfilled due to insufficient funds.
+        withdrawRequest.asset = address(token);
+        withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
+        vm.prank(RECIPIENT);
+        vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.TransferFailed.selector));
+        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
+    }
 
-    // function test_RevertWhen_PreCallReverts() external {
-    //     uint128 amount = 5 ether;
-    //     address asset = address(0);
-    //     uint256 nonce = 0;
+    function test_RevertWhen_PreCallReverts() external {
+        uint128 amount = 5 ether;
+        address asset = address(0);
+        uint256 nonce = 0;
 
-    //     string memory revertMessage = "MAGIC";
+        string memory revertMessage = "MAGIC";
 
-    //     // Deposit funds to the contract
-    //     vm.prank(BANK);
-    //     address(magicSpendPlusMinusHalf).call{value: amount}("");
+        _addStake(asset, amount);
 
-    //     WithdrawRequest memory withdrawRequest = WithdrawRequest({
-    //         account: BANK,
-    //         amount: amount,
-    //         asset: asset,
-    //         nonce: nonce,
-    //         preCalls: new CallStruct[](1),
-    //         postCalls: new CallStruct[](0),
-    //         validUntil: 0,
-    //         validAfter: 0,
-    //         signature: ""
-    //     });
-    //     // force a revert by calling non existant function
-    //     withdrawRequest.preCalls[0] = CallStruct({
-    //         to: address(forceReverter),
-    //         data: abi.encodeWithSignature("forceRevertWithMessage(string)", revertMessage),
-    //         value: 0
-    //     });
-    //     withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            account: BANK,
+            amount: amount,
+            asset: asset,
+            nonce: nonce,
+            preCalls: new CallStruct[](1),
+            postCalls: new CallStruct[](0),
+            validUntil: 0,
+            validAfter: 0,
+            signature: ""
+        });
+        // force a revert by calling non existant function
+        withdrawRequest.preCalls[0] = CallStruct({
+            to: address(forceReverter),
+            data: abi.encodeWithSignature("forceRevertWithMessage(string)", revertMessage),
+            value: 0
+        });
+        withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
-    //     vm.prank(RECIPIENT);
-    //     bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
-    //     vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PreCallReverted.selector, revertBytes));
-    //     magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
-    // }
+        vm.prank(RECIPIENT);
+        bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
+        vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PreCallReverted.selector, revertBytes));
+        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
+    }
 
-    // function test_RevertWhen_PostCallReverts() external {
-    //     uint256 amount = 5 ether;
-    //     address asset = address(0);
-    //     uint256 nonce = 0;
+    function test_RevertWhen_PostCallReverts() external {
+        uint128 amount = 5 ether;
+        address asset = address(0);
+        uint256 nonce = 0;
 
-    //     string memory revertMessage = "MAGIC";
+        _addStake(asset, amount);
 
-    //     WithdrawRequest memory withdrawRequest = WithdrawRequest({
-    //         amount: amount,
-    //         asset: asset,
-    //         nonce: nonce,
-    //         preCalls: new CallStruct[](0),
-    //         postCalls: new CallStruct[](1),
-    //         validUntil: 0,
-    //         validAfter: 0,
-    //         signature: ""
-    //     });
-    //     // force a revert by calling non existant function
-    //     withdrawRequest.postCalls[0] = CallStruct({
-    //         to: address(forceReverter),
-    //         data: abi.encodeWithSignature("forceRevertWithMessage(string)", revertMessage),
-    //         value: 0
-    //     });
-    //     withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
+        string memory revertMessage = "MAGIC";
 
-    //     vm.deal(address(magicSpendPlusMinusHalf), 100 ether);
-    //     vm.prank(RECIPIENT);
-    //     bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
-    //     vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PostCallReverted.selector, revertBytes));
-    //     magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
-    // }
+        WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            account: BANK,
+            amount: amount,
+            asset: asset,
+            nonce: nonce,
+            preCalls: new CallStruct[](0),
+            postCalls: new CallStruct[](1),
+            validUntil: 0,
+            validAfter: 0,
+            signature: ""
+        });
+        // force a revert by calling non existant function
+        withdrawRequest.postCalls[0] = CallStruct({
+            to: address(forceReverter),
+            data: abi.encodeWithSignature("forceRevertWithMessage(string)", revertMessage),
+            value: 0
+        });
+        withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
+
+        vm.deal(address(magicSpendPlusMinusHalf), 100 ether);
+        vm.prank(RECIPIENT);
+        bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
+        vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PostCallReverted.selector, revertBytes));
+        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
+    }
 
     // = = = Helpers = = =
 
@@ -326,5 +320,22 @@ contract MagicSpendPlusMinusHalfTest is Test {
         bytes32 digest = MessageHashUtils.toEthSignedMessageHash(hash);
         (uint8 v, bytes32 r, bytes32 s) = vm.sign(signingKey, digest);
         return abi.encodePacked(r, s, v);
+    }
+
+    function _addStake(
+        address asset,
+        uint128 amount
+    ) internal {
+        vm.prank(BANK);
+
+        if (asset == address(0)) {
+            (bool success, bytes memory result) = address(magicSpendPlusMinusHalf).call{value: amount}("");
+
+            if (!success) {
+                revert FailedToAddStake(result);
+            }
+        } else {
+            magicSpendPlusMinusHalf.addStake(asset, amount, 60);
+        }
     }
 }
