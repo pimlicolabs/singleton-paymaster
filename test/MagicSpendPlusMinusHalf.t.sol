@@ -53,6 +53,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -89,6 +90,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -128,6 +130,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -157,6 +160,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -185,6 +189,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -211,6 +216,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -236,6 +242,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -274,6 +281,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         uint256 nonce = 0;
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -310,6 +318,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         _addStake(asset, amount);
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,
@@ -344,6 +353,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         string memory revertMessage = "MAGIC";
 
         WithdrawRequest memory withdrawRequest = WithdrawRequest({
+            chainId: block.chainid,
             amount: amount,
             asset: asset,
             nonce: nonce,

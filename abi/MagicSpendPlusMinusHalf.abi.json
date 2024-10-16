@@ -130,6 +130,11 @@
             "internalType": "uint256"
           },
           {
+            "name": "chainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
             "name": "recipient",
             "type": "address",
             "internalType": "address"
@@ -375,6 +380,11 @@
           },
           {
             "name": "nonce",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "chainId",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -778,6 +788,11 @@
   {
     "type": "error",
     "name": "RequestExpired",
+    "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "RequestInvlidChain",
     "inputs": []
   },
   {

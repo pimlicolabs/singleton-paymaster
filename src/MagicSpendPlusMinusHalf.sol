@@ -32,6 +32,8 @@ struct WithdrawRequest {
     uint128 amount;
     /// @dev Unique nonce used to prevent replays.
     uint256 nonce;
+    /// @dev Chain id of the network.
+    uint256 chainId;
     /// @dev Address that will receive the funds.
     address recipient;
     /// @dev Calls that will be made before the funds are sent to the user.
@@ -53,6 +55,9 @@ struct WithdrawRequest {
 contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeManager {
     /// @notice Thrown when the request was submitted past its validUntil.
     error RequestExpired();
+
+    /// @notice Thrown when the request was submitted with an invalid chain id.
+    error RequestInvlidChain();
 
     /// @notice Thrown when the request was submitted before its validAfter.
     error RequestNotYetValid();
@@ -99,6 +104,10 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         bytes memory accountSignature,
         bytes memory signature
     ) external {
+        if (withdrawRequest.chainId != block.chainid) {
+            revert RequestInvlidChain();
+        }
+
         if (block.timestamp > withdrawRequest.validUntil && withdrawRequest.validUntil != 0) {
             revert RequestExpired();
         }
@@ -200,6 +209,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
                 withdrawRequest.amount,
                 withdrawRequest.recipient,
                 withdrawRequest.nonce,
+                withdrawRequest.chainId,
                 withdrawRequest.validUntil,
                 withdrawRequest.validAfter,
                 keccak256(abi.encode(withdrawRequest.preCalls)),
