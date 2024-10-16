@@ -16,14 +16,20 @@ interface IStakeManager {
     event StakeLocked(
         address indexed account,
         address indexed asset,
-        uint256 totalStaked,
+        uint256 amount,
         uint256 withdrawTime
     );
 
     event StakeWithdrawn(
         address indexed account,
         address indexed asset,
-        address withdrawAddress,
+        uint256 amount,
+        address withdrawAddress
+    );
+
+    event StakeClaimed(
+        address indexed account,
+        address indexed asset,
         uint256 amount
     );
 

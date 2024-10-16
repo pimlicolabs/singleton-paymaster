@@ -37,7 +37,7 @@ abstract contract StakeManager is IStakeManager {
         addStake(ETH, uint128(msg.value), TWO_WEEKS);
     }
 
-    function _decreaseStake(
+    function _claimStake(
         address account,
         address asset,
         uint128 amount
@@ -48,6 +48,9 @@ abstract contract StakeManager is IStakeManager {
         }
 
         info.stake -= amount;
+
+        emit StakeClaimed(account, asset, amount);
+
         return true;
     }
 
@@ -93,7 +96,7 @@ abstract contract StakeManager is IStakeManager {
             SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), amount);
         }
 
-        emit StakeLocked(msg.sender, asset, stake, withdrawTime);
+        emit StakeLocked(msg.sender, asset, amount, withdrawTime);
     }
 
     /**
@@ -119,7 +122,7 @@ abstract contract StakeManager is IStakeManager {
         info.withdrawTime = 0;
         info.stake = 0;
 
-        emit StakeWithdrawn(msg.sender, asset, withdrawAddress, stake);
+        emit StakeWithdrawn(msg.sender, asset, stake, withdrawAddress);
 
         if (asset == ETH) {
             SafeTransferLib.safeTransferETH(withdrawAddress, stake);

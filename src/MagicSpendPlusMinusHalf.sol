@@ -75,7 +75,14 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     error PostCallReverted(bytes revertReason);
 
     /// @notice Emitted when a withdraw request has been fulfilled.
-    event WithdrawRequestFulfilled(address receiver, uint256 amount, address asset, uint256 nonce);
+    event WithdrawRequestFulfilled(
+        bytes32 indexed requestHash,
+        address indexed account,
+        address indexed asset,
+        uint256 amount,
+        address receiver,
+        uint256 nonce
+    );
 
     /// @notice Mappings keeping track of already used nonces per user to prevent replays of withdraw requests.
     mapping(address user => mapping(uint256 nonce => bool used)) public nonceUsed;
@@ -101,8 +108,9 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         address recipient = msg.sender;
 
         // check signature
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(recipient, withdrawRequest));
-        address recoveredSigner = ECDSA.recover(hash, withdrawRequest.signature);
+        bytes32 requestHash = getHash(recipient, withdrawRequest);
+        bytes32 messageHash = MessageHashUtils.toEthSignedMessageHash(requestHash);
+        address recoveredSigner = ECDSA.recover(messageHash, withdrawRequest.signature);
 
         if (!signers[recoveredSigner]) {
             revert SignatureInvalid();
@@ -114,13 +122,13 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         }
 
         // Check that the account has enough stake
-        bool stakeDecreased = _decreaseStake(
+        bool stakeClaimed = _claimStake(
             withdrawRequest.account,
             withdrawRequest.asset,
             withdrawRequest.amount
         );
 
-        if (!stakeDecreased) {
+        if (!stakeClaimed) {
             if (withdrawRequest.asset == ETH) {
                 revert SafeTransferLib.ETHTransferFailed();
             } else {
@@ -162,7 +170,14 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         }
 
         nonceUsed[recipient][withdrawRequest.nonce] = true;
-        emit WithdrawRequestFulfilled(recipient, withdrawRequest.amount, withdrawRequest.asset, withdrawRequest.nonce);
+        emit WithdrawRequestFulfilled(
+            requestHash,
+            withdrawRequest.account,
+            withdrawRequest.asset,
+            withdrawRequest.amount,
+            recipient,
+            withdrawRequest.nonce
+        );
     }
 
     /**

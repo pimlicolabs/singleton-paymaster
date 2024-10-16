@@ -20,7 +20,6 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
     address signer;
     uint256 signerKey;
-    address bank;
 
     ForceReverter forceReverter;
     MagicSpendPlusMinusHalf magicSpendPlusMinusHalf;
@@ -64,7 +63,14 @@ contract MagicSpendPlusMinusHalfTest is Test {
         withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(RECIPIENT, amount, asset, nonce);
+        emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(
+            magicSpendPlusMinusHalf.getHash(RECIPIENT, withdrawRequest),
+            BANK,
+            asset,
+            amount,
+            RECIPIENT,
+            nonce
+        );
 
         vm.prank(RECIPIENT);
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
@@ -92,7 +98,14 @@ contract MagicSpendPlusMinusHalfTest is Test {
         withdrawRequest.signature = signWithdrawRequest(withdrawRequest, signerKey);
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(RECIPIENT, amount, asset, nonce);
+        emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(
+            magicSpendPlusMinusHalf.getHash(RECIPIENT, withdrawRequest),
+            BANK,
+            asset,
+            amount,
+            RECIPIENT,
+            nonce
+        );
 
         vm.prank(RECIPIENT);
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
@@ -198,7 +211,15 @@ contract MagicSpendPlusMinusHalfTest is Test {
         // force burn nonce
         vm.deal(address(magicSpendPlusMinusHalf), amount);
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(RECIPIENT, amount, asset, nonce);
+
+        emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(
+            magicSpendPlusMinusHalf.getHash(RECIPIENT, withdrawRequest),
+            BANK,
+            asset,
+            amount,
+            RECIPIENT,
+            nonce
+        );
 
         vm.prank(RECIPIENT);
         magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest);
