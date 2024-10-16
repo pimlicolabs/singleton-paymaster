@@ -110,20 +110,10 @@
     "name": "getHash",
     "inputs": [
       {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
         "name": "withdrawRequest",
         "type": "tuple",
         "internalType": "struct WithdrawRequest",
         "components": [
-          {
-            "name": "account",
-            "type": "address",
-            "internalType": "address"
-          },
           {
             "name": "asset",
             "type": "address",
@@ -138,6 +128,11 @@
             "name": "nonce",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
           },
           {
             "name": "preCalls",
@@ -192,11 +187,6 @@
             "name": "validAfter",
             "type": "uint48",
             "internalType": "uint48"
-          },
-          {
-            "name": "signature",
-            "type": "bytes",
-            "internalType": "bytes"
           }
         ]
       }
@@ -374,11 +364,6 @@
         "internalType": "struct WithdrawRequest",
         "components": [
           {
-            "name": "account",
-            "type": "address",
-            "internalType": "address"
-          },
-          {
             "name": "asset",
             "type": "address",
             "internalType": "address"
@@ -392,6 +377,11 @@
             "name": "nonce",
             "type": "uint256",
             "internalType": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
           },
           {
             "name": "preCalls",
@@ -446,13 +436,18 @@
             "name": "validAfter",
             "type": "uint48",
             "internalType": "uint48"
-          },
-          {
-            "name": "signature",
-            "type": "bytes",
-            "internalType": "bytes"
           }
         ]
+      },
+      {
+        "name": "accountSignature",
+        "type": "bytes",
+        "internalType": "bytes"
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
       }
     ],
     "outputs": [],
@@ -500,7 +495,7 @@
         "internalType": "address"
       },
       {
-        "name": "withdrawAddress",
+        "name": "recipient",
         "type": "address",
         "internalType": "address payable"
       }
@@ -595,7 +590,7 @@
         "internalType": "address"
       },
       {
-        "name": "totalStaked",
+        "name": "amount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
@@ -626,16 +621,16 @@
         "internalType": "address"
       },
       {
-        "name": "withdrawAddress",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
         "name": "amount",
         "type": "uint256",
         "indexed": false,
         "internalType": "uint256"
+      },
+      {
+        "name": "withdrawAddress",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
       }
     ],
     "anonymous": false
@@ -647,13 +642,19 @@
       {
         "name": "requestHash",
         "type": "bytes32",
-        "indexed": false,
+        "indexed": true,
         "internalType": "bytes32"
       },
       {
-        "name": "receiver",
+        "name": "account",
         "type": "address",
-        "indexed": false,
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
         "internalType": "address"
       },
       {
@@ -663,7 +664,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "asset",
+        "name": "recipient",
         "type": "address",
         "indexed": false,
         "internalType": "address"

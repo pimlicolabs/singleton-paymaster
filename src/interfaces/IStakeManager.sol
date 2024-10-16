@@ -80,10 +80,10 @@ interface IStakeManager {
     /**
      * Withdraw from the stake.
      * @param asset   - The asset to use.
-     * @param withdrawAddress - The address to send withdrawn value.
+     * @param recipient - The address to send withdrawn value.
      */
     function withdraw(
         address asset,
-        address payable withdrawAddress
+        address payable recipient
     ) external;
 }

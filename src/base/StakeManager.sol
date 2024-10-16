@@ -102,11 +102,11 @@ abstract contract StakeManager is IStakeManager {
     /**
      * Withdraw from the stake.
      * Must first call unlockStake and wait for the unstakeDelay to pass.
-     * @param withdrawAddress - The address to send withdrawn value.
+     * @param recipient - The address to send withdrawn value.
      */
     function withdraw(
         address asset,
-        address payable withdrawAddress
+        address payable recipient
     ) external {
         StakeInfo storage info = stakes[msg.sender][asset];
         uint256 stake = info.stake;
@@ -122,12 +122,12 @@ abstract contract StakeManager is IStakeManager {
         info.withdrawTime = 0;
         info.stake = 0;
 
-        emit StakeWithdrawn(msg.sender, asset, stake, withdrawAddress);
+        emit StakeWithdrawn(msg.sender, asset, stake, recipient);
 
         if (asset == ETH) {
-            SafeTransferLib.safeTransferETH(withdrawAddress, stake);
+            SafeTransferLib.safeTransferETH(recipient, stake);
         } else {
-            SafeTransferLib.safeTransfer(asset, withdrawAddress, stake);
+            SafeTransferLib.safeTransfer(asset, recipient, stake);
         }
     }
 }
