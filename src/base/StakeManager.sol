@@ -29,29 +29,12 @@ abstract contract StakeManager is IStakeManager {
 
 
     /// @inheritdoc IStakeManager
-    function balanceOf(address account, address asset) public view returns (uint256) {
+    function stakeOf(address account, address asset) public view returns (uint256) {
         return stakes[account][asset].stake;
     }
 
     receive() external payable {
         addStake(ETH, uint128(msg.value), TWO_WEEKS);
-    }
-
-    function _claimStake(
-        address account,
-        address asset,
-        uint128 amount
-    ) internal returns (bool) {
-        StakeInfo storage info = stakes[account][asset];
-        if (info.stake < amount) {
-            return false;
-        }
-
-        info.stake -= amount;
-
-        emit StakeClaimed(account, asset, amount);
-
-        return true;
     }
 
     /**
@@ -97,6 +80,21 @@ abstract contract StakeManager is IStakeManager {
         }
 
         emit StakeLocked(msg.sender, asset, amount, withdrawTime);
+    }
+
+    function _decreaseStake(
+        address account,
+        address asset,
+        uint128 amount
+    ) internal {
+        StakeInfo storage info = stakes[account][asset];
+        uint256 stake = info.stake;
+
+        if (stake < amount) {
+            revert StakeTooLow();
+        }
+
+        info.stake = uint128(stake - amount);
     }
 
     /**

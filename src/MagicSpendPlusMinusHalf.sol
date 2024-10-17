@@ -17,6 +17,7 @@ import {NonceManager} from "./base/NonceManager.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
+
 /// @notice Helper struct that represents a call to make.
 struct CallStruct {
     address to;
@@ -24,14 +25,20 @@ struct CallStruct {
     bytes data;
 }
 
-/// @notice Signed withdraw request allowing users to withdraw funds from the paymaster's EntryPoint deposit.
-struct WithdrawRequest {
+/// @notice Request acts as a reciept
+/// @dev signed by one of the signers it allows to withdraw funds
+/// @dev signed by the user it allows to claim funds from it's stake
+struct Request {
     /// @dev Asset that user wants to withdraw.
     address asset;
     /// @dev The requested amount to withdraw.
     uint128 amount;
-    /// @dev Chain id of the network.
-    uint256 chainId;
+    /// @dev The amount of fee that will be paid to the operator.
+    uint128 fee;
+    /// @dev Chain id of the network, where the request will be claimed.
+    uint256 claimChainId;
+    /// @dev Chain id of the network, where the request will be withdrawn.
+    uint256 withdrawChainId;
     /// @dev Address that will receive the funds.
     address recipient;
     /// @dev Calls that will be made before the funds are sent to the user.
@@ -47,7 +54,7 @@ struct WithdrawRequest {
 
 /// @title MagicSpendPlusMinusHalf
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/MagicSpendPlusMinusHalf.sol)
-/// @notice Contract that allows users to pull funds from if they provide a valid signed withdrawRequest.
+/// @notice Contract that allows users to pull funds from if they provide a valid signed request.
 /// @dev Inherits from MultiSigner.
 /// @dev Inherits from Ownable.
 /// @custom:security-contact security@pimlico.io
@@ -64,8 +71,8 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     /// @notice The withdraw request was initiated with a invalid nonce.
     error SignatureInvalid();
 
-    /// @notice The withdraw request was initiated with a invalid nonce.
-    error NonceInvalid();
+    /// @notice The withdraw request was already withdrawn or claimed.
+    error AlreadyUsed();
 
     /// @notice One of the precalls reverted.
     /// @param revertReason The revert bytes.
@@ -76,11 +83,20 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     error PostCallReverted(bytes revertReason);
 
     /// @notice Emitted when a withdraw request has been fulfilled.
-    event Withdraw(
+    event RequestWithdrawn(
         bytes32 indexed requestHash,
         address indexed asset,
-        uint256 amount,
+        uint128 amount,
         address recipient
+    );
+
+    /// @notice Emitted when a claim request has been fulfilled.
+    event RequestClaimed(
+        bytes32 indexed requestHash,
+        address indexed asset,
+        uint128 amount,
+        uint128 fee,
+        address account
     );
 
     /// @notice Emitted when a deposit has been made.
@@ -89,10 +105,18 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         uint256 amount
     );
 
-    mapping(bytes32 hash_ => bool used) public withdrawalsUsed;
-    mapping(bytes32 hash_ => bool used) public claimsUsed;
+    struct RequestStatus {
+        bool withdrawn;
+        bool claimed;
+    }
 
-    constructor(address _owner, address[] memory _signers) Ownable(_owner) MultiSigner(_signers) {}
+    mapping(address asset => uint256 amount) public balances;
+    mapping(bytes32 hash_ => RequestStatus status) public statuses;
+
+    constructor(
+        address _owner,
+        address[] memory _signers
+    ) Ownable(_owner) MultiSigner(_signers) {}
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                     EXTERNAL FUNCTIONS                     */
@@ -103,23 +127,23 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
      * The signature should be signed by one of the signers.
      */
     function withdraw(
-        WithdrawRequest calldata withdrawRequest,
+        Request calldata request,
         bytes calldata signature
     ) external {
-        if (withdrawRequest.chainId != block.chainid) {
+        if (request.withdrawChainId != block.chainid) {
             revert RequestInvalidChain();
         }
 
-        if (block.timestamp > withdrawRequest.validUntil && withdrawRequest.validUntil != 0) {
+        if (block.timestamp > request.validUntil && request.validUntil != 0) {
             revert RequestExpired();
         }
 
-        if (block.timestamp < withdrawRequest.validAfter && withdrawRequest.validAfter != 0) {
+        if (block.timestamp < request.validAfter && request.validAfter != 0) {
             revert RequestNotYetValid();
         }
 
         // check signature is authorized by the actual operator
-        bytes32 hash_ = getHash(withdrawRequest);
+        bytes32 hash_ = getHash(request);
 
         address signer = ECDSA.recover(
             hash_,
@@ -131,15 +155,15 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         }
 
         // check withdraw request params
-        if (withdrawalsUsed[hash_]) {
-            revert NonceInvalid();
+        if (statuses[hash_].withdrawn) {
+            revert AlreadyUsed();
         }
 
         // run pre calls
-        for (uint256 i = 0; i < withdrawRequest.preCalls.length; i++) {
-            address to = withdrawRequest.preCalls[i].to;
-            uint256 value = withdrawRequest.preCalls[i].value;
-            bytes memory data = withdrawRequest.preCalls[i].data;
+        for (uint256 i = 0; i < request.preCalls.length; i++) {
+            address to = request.preCalls[i].to;
+            uint256 value = request.preCalls[i].value;
+            bytes memory data = request.preCalls[i].data;
 
             (bool success, bytes memory result) = to.call{value: value}(data);
 
@@ -149,17 +173,17 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         }
 
         // fulfil withdraw request
-        if (withdrawRequest.asset == address(0)) {
-            SafeTransferLib.forceSafeTransferETH(withdrawRequest.recipient, withdrawRequest.amount);
+        if (request.asset == address(0)) {
+            SafeTransferLib.forceSafeTransferETH(request.recipient, request.amount);
         } else {
-            SafeTransferLib.safeTransfer(withdrawRequest.asset, withdrawRequest.recipient, withdrawRequest.amount);
+            SafeTransferLib.safeTransfer(request.asset, request.recipient, request.amount);
         }
 
         // run postcalls
-        for (uint256 i = 0; i < withdrawRequest.postCalls.length; i++) {
-            address to = withdrawRequest.postCalls[i].to;
-            uint256 value = withdrawRequest.postCalls[i].value;
-            bytes memory data = withdrawRequest.postCalls[i].data;
+        for (uint256 i = 0; i < request.postCalls.length; i++) {
+            address to = request.postCalls[i].to;
+            uint256 value = request.postCalls[i].value;
+            bytes memory data = request.postCalls[i].data;
 
             (bool success, bytes memory result) = to.call{value: value}(data);
 
@@ -168,20 +192,48 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
             }
         }
 
-        withdrawalsUsed[hash_] = true;
+        statuses[hash_].withdrawn = true;
 
-        emit Withdraw(
+        emit RequestWithdrawn(
             hash_,
-            withdrawRequest.asset,
-            withdrawRequest.amount,
-            withdrawRequest.recipient
+            request.asset,
+            request.amount,
+            request.recipient
         );
     }
 
     function claim(
-
+        Request calldata request,
+        bytes calldata signature
     ) external {
+        bytes32 hash_ = getHash(request);
 
+        address account = ECDSA.recover(
+            hash_,
+            signature
+        );
+
+        if (statuses[hash_].claimed) {
+            revert AlreadyUsed();
+        }
+
+        uint128 amount = request.amount + request.fee;
+
+        _decreaseStake(
+            account,
+            request.asset,
+            amount
+        );
+
+        statuses[hash_].claimed = true;
+
+        emit RequestClaimed(
+            hash_,
+            request.asset,
+            request.amount,
+            request.fee,
+            account
+        );
     }
 
     function deposit(
@@ -205,22 +257,24 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     /**
      * @notice Allows the caller to withdraw funds if a valid signature is passed.
      * @dev At time of call, recipient will be equal to msg.sender.
-     * @param withdrawRequest The withdraw request to get the hash of.
+     * @param request The withdraw request to get the hash of.
      * @return The hashed withdraw request.
      */
-    function getHash(WithdrawRequest calldata withdrawRequest) public view returns (bytes32) {
+    function getHash(Request calldata request) public view returns (bytes32) {
         bytes32 digest = keccak256(
             abi.encode(
                 address(this),
-                block.chainid,
-                withdrawRequest.asset,
-                withdrawRequest.amount,
-                withdrawRequest.recipient,
-                withdrawRequest.chainId,
-                withdrawRequest.validUntil,
-                withdrawRequest.validAfter,
-                keccak256(abi.encode(withdrawRequest.preCalls)),
-                keccak256(abi.encode(withdrawRequest.postCalls))
+                request.claimChainId,
+                request.withdrawChainId,
+                request.asset,
+                request.amount,
+                request.recipient,
+                request.withdrawChainId,
+                request.claimChainId,
+                request.validUntil,
+                request.validAfter,
+                keccak256(abi.encode(request.preCalls)),
+                keccak256(abi.encode(request.postCalls))
             )
         );
 

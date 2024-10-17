@@ -59,7 +59,7 @@ interface IStakeManager {
      * @param asset   - The asset to use.
      * @return        - The deposit (for gas payment) of the account.
      */
-    function balanceOf(
+    function stakeOf(
         address account,
         address asset
     ) external view returns (uint256);
