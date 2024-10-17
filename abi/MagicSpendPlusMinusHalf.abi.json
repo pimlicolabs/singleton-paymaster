@@ -83,13 +83,8 @@
   },
   {
     "type": "function",
-    "name": "balanceOf",
+    "name": "balances",
     "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      },
       {
         "name": "asset",
         "type": "address",
@@ -98,7 +93,7 @@
     ],
     "outputs": [
       {
-        "name": "",
+        "name": "amount",
         "type": "uint256",
         "internalType": "uint256"
       }
@@ -107,12 +102,12 @@
   },
   {
     "type": "function",
-    "name": "getHash",
+    "name": "claim",
     "inputs": [
       {
-        "name": "withdrawRequest",
+        "name": "request",
         "type": "tuple",
-        "internalType": "struct WithdrawRequest",
+        "internalType": "struct Request",
         "components": [
           {
             "name": "asset",
@@ -125,12 +120,139 @@
             "internalType": "uint128"
           },
           {
-            "name": "nonce",
+            "name": "fee",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "claimChainId",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "chainId",
+            "name": "withdrawChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "recipient",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "preCalls",
+            "type": "tuple[]",
+            "internalType": "struct CallStruct[]",
+            "components": [
+              {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "postCalls",
+            "type": "tuple[]",
+            "internalType": "struct CallStruct[]",
+            "components": [
+              {
+                "name": "to",
+                "type": "address",
+                "internalType": "address"
+              },
+              {
+                "name": "value",
+                "type": "uint256",
+                "internalType": "uint256"
+              },
+              {
+                "name": "data",
+                "type": "bytes",
+                "internalType": "bytes"
+              }
+            ]
+          },
+          {
+            "name": "validUntil",
+            "type": "uint48",
+            "internalType": "uint48"
+          },
+          {
+            "name": "validAfter",
+            "type": "uint48",
+            "internalType": "uint48"
+          }
+        ]
+      },
+      {
+        "name": "signature",
+        "type": "bytes",
+        "internalType": "bytes"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "deposit",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
+    "name": "getHash",
+    "inputs": [
+      {
+        "name": "request",
+        "type": "tuple",
+        "internalType": "struct Request",
+        "components": [
+          {
+            "name": "asset",
+            "type": "address",
+            "internalType": "address"
+          },
+          {
+            "name": "amount",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "fee",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "claimChainId",
+            "type": "uint256",
+            "internalType": "uint256"
+          },
+          {
+            "name": "withdrawChainId",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -304,30 +426,6 @@
   },
   {
     "type": "function",
-    "name": "nonceUsed",
-    "inputs": [
-      {
-        "name": "user",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "nonce",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "used",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
     "name": "owner",
     "inputs": [],
     "outputs": [
@@ -361,12 +459,110 @@
   },
   {
     "type": "function",
-    "name": "requestWithdraw",
+    "name": "signers",
     "inputs": [
       {
-        "name": "withdrawRequest",
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "isValidSigner",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "stakeOf",
+    "inputs": [
+      {
+        "name": "account",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint256",
+        "internalType": "uint256"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "statuses",
+    "inputs": [
+      {
+        "name": "hash_",
+        "type": "bytes32",
+        "internalType": "bytes32"
+      }
+    ],
+    "outputs": [
+      {
+        "name": "withdrawn",
+        "type": "bool",
+        "internalType": "bool"
+      },
+      {
+        "name": "claimed",
+        "type": "bool",
+        "internalType": "bool"
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "transferOwnership",
+    "inputs": [
+      {
+        "name": "newOwner",
+        "type": "address",
+        "internalType": "address"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "unstake",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address payable"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "withdraw",
+    "inputs": [
+      {
+        "name": "request",
         "type": "tuple",
-        "internalType": "struct WithdrawRequest",
+        "internalType": "struct Request",
         "components": [
           {
             "name": "asset",
@@ -379,12 +575,17 @@
             "internalType": "uint128"
           },
           {
-            "name": "nonce",
+            "name": "fee",
+            "type": "uint128",
+            "internalType": "uint128"
+          },
+          {
+            "name": "claimChainId",
             "type": "uint256",
             "internalType": "uint256"
           },
           {
-            "name": "chainId",
+            "name": "withdrawChainId",
             "type": "uint256",
             "internalType": "uint256"
           },
@@ -450,11 +651,6 @@
         ]
       },
       {
-        "name": "accountSignature",
-        "type": "bytes",
-        "internalType": "bytes"
-      },
-      {
         "name": "signature",
         "type": "bytes",
         "internalType": "bytes"
@@ -464,54 +660,23 @@
     "stateMutability": "nonpayable"
   },
   {
-    "type": "function",
-    "name": "signers",
-    "inputs": [
-      {
-        "name": "account",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [
-      {
-        "name": "isValidSigner",
-        "type": "bool",
-        "internalType": "bool"
-      }
-    ],
-    "stateMutability": "view"
-  },
-  {
-    "type": "function",
-    "name": "transferOwnership",
-    "inputs": [
-      {
-        "name": "newOwner",
-        "type": "address",
-        "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "withdraw",
+    "type": "event",
+    "name": "Deposit",
     "inputs": [
       {
         "name": "asset",
         "type": "address",
+        "indexed": true,
         "internalType": "address"
       },
       {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address payable"
+        "name": "amount",
+        "type": "uint256",
+        "indexed": false,
+        "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
+    "anonymous": false
   },
   {
     "type": "event",
@@ -527,6 +692,74 @@
         "name": "newOwner",
         "type": "address",
         "indexed": true,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestClaimed",
+    "inputs": [
+      {
+        "name": "requestHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "fee",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "account",
+        "type": "address",
+        "indexed": false,
+        "internalType": "address"
+      }
+    ],
+    "anonymous": false
+  },
+  {
+    "type": "event",
+    "name": "RequestWithdrawn",
+    "inputs": [
+      {
+        "name": "requestHash",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
+      },
+      {
+        "name": "asset",
+        "type": "address",
+        "indexed": true,
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "indexed": false,
         "internalType": "address"
       }
     ],
@@ -637,7 +870,7 @@
         "internalType": "uint256"
       },
       {
-        "name": "withdrawAddress",
+        "name": "recipient",
         "type": "address",
         "indexed": false,
         "internalType": "address"
@@ -646,47 +879,9 @@
     "anonymous": false
   },
   {
-    "type": "event",
-    "name": "WithdrawRequestFulfilled",
-    "inputs": [
-      {
-        "name": "requestHash",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
-        "name": "account",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "asset",
-        "type": "address",
-        "indexed": true,
-        "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      },
-      {
-        "name": "recipient",
-        "type": "address",
-        "indexed": false,
-        "internalType": "address"
-      },
-      {
-        "name": "nonce",
-        "type": "uint256",
-        "indexed": false,
-        "internalType": "uint256"
-      }
-    ],
-    "anonymous": false
+    "type": "error",
+    "name": "AlreadyUsed",
+    "inputs": []
   },
   {
     "type": "error",
@@ -717,11 +912,6 @@
   },
   {
     "type": "error",
-    "name": "ETHTransferFailed",
-    "inputs": []
-  },
-  {
-    "type": "error",
     "name": "InsufficientFunds",
     "inputs": []
   },
@@ -729,17 +919,6 @@
     "type": "error",
     "name": "InvalidUnstakeDelay",
     "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "NonceInvalid",
-    "inputs": [
-      {
-        "name": "nonce",
-        "type": "uint256",
-        "internalType": "uint256"
-      }
-    ]
   },
   {
     "type": "error",
@@ -792,7 +971,7 @@
   },
   {
     "type": "error",
-    "name": "RequestInvlidChain",
+    "name": "RequestInvalidChain",
     "inputs": []
   },
   {
@@ -818,11 +997,6 @@
   {
     "type": "error",
     "name": "StakeTooLow",
-    "inputs": []
-  },
-  {
-    "type": "error",
-    "name": "TransferFailed",
     "inputs": []
   }
 ]
