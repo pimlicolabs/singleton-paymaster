@@ -82,7 +82,7 @@ interface IStakeManager {
      * @param asset   - The asset to use.
      * @param recipient - The address to send withdrawn value.
      */
-    function withdraw(
+    function unstake(
         address asset,
         address payable recipient
     ) external;

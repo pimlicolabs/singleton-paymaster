@@ -30,8 +30,6 @@ struct WithdrawRequest {
     address asset;
     /// @dev The requested amount to withdraw.
     uint128 amount;
-    /// @dev Unique nonce used to prevent replays.
-    uint256 nonce;
     /// @dev Chain id of the network.
     uint256 chainId;
     /// @dev Address that will receive the funds.
@@ -46,11 +44,6 @@ struct WithdrawRequest {
     uint48 validAfter;
 }
 
-struct WithdrawRequestSignatures {
-    bytes requesterSignature;
-    bytes accountSignature;
-    bytes magicSpendOperatorSignature;
-}
 
 /// @title MagicSpendPlusMinusHalf
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/MagicSpendPlusMinusHalf.sol)
@@ -72,8 +65,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     error SignatureInvalid();
 
     /// @notice The withdraw request was initiated with a invalid nonce.
-    /// @param nonce The nonce used in the withdraw request.
-    error NonceInvalid(uint256 nonce);
+    error NonceInvalid();
 
     /// @notice One of the precalls reverted.
     /// @param revertReason The revert bytes.
@@ -84,17 +76,21 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     error PostCallReverted(bytes revertReason);
 
     /// @notice Emitted when a withdraw request has been fulfilled.
-    event WithdrawRequestFulfilled(
+    event Withdraw(
         bytes32 indexed requestHash,
-        address indexed account,
         address indexed asset,
         uint256 amount,
-        address recipient,
-        uint256 nonce
+        address recipient
     );
 
-    /// @notice Mappings keeping track of already used nonces per user to prevent replays of withdraw requests.
-    mapping(address user => mapping(uint256 nonce => bool used)) public nonceUsed;
+    /// @notice Emitted when a deposit has been made.
+    event Deposit(
+        address indexed asset,
+        uint256 amount
+    );
+
+    mapping(bytes32 hash_ => bool used) public withdrawalsUsed;
+    mapping(bytes32 hash_ => bool used) public claimsUsed;
 
     constructor(address _owner, address[] memory _signers) Ownable(_owner) MultiSigner(_signers) {}
 
@@ -104,10 +100,11 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
 
     /**
      * @notice Fulfills a withdraw request only if it has a valid signature and passes validation.
+     * The signature should be signed by one of the signers.
      */
-    function claim(
+    function withdraw(
         WithdrawRequest calldata withdrawRequest,
-        WithdrawRequestSignatures calldata signatures
+        bytes calldata signature
     ) external {
         if (withdrawRequest.chainId != block.chainid) {
             revert RequestInvalidChain();
@@ -121,19 +118,12 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
             revert RequestNotYetValid();
         }
 
-        // check signatures
+        // check signature is authorized by the actual operator
         bytes32 hash_ = getHash(withdrawRequest);
 
-        // - derive account from the signature
-        address account = ECDSA.recover(
-            hash_,
-            signatures.accountSignature
-        );
-
-        // - check signature is authorized
         address signer = ECDSA.recover(
             hash_,
-            signatures.magicSpendOperatorSignature
+            signature
         );
 
         if (!signers[signer]) {
@@ -141,23 +131,8 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         }
 
         // check withdraw request params
-        if (nonceUsed[account][withdrawRequest.nonce]) {
-            revert NonceInvalid(withdrawRequest.nonce);
-        }
-
-        // Check that the account has enough stake
-        bool stakeClaimed = _claimStake(
-            account,
-            withdrawRequest.asset,
-            withdrawRequest.amount
-        );
-
-        if (!stakeClaimed) {
-            if (withdrawRequest.asset == ETH) {
-                revert SafeTransferLib.ETHTransferFailed();
-            } else {
-                revert SafeTransferLib.TransferFailed();
-            }
+        if (withdrawalsUsed[hash_]) {
+            revert NonceInvalid();
         }
 
         // run pre calls
@@ -193,23 +168,39 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
             }
         }
 
-        nonceUsed[account][withdrawRequest.nonce] = true;
+        withdrawalsUsed[hash_] = true;
 
-        emit WithdrawRequestFulfilled(
+        emit Withdraw(
             hash_,
-            account,
             withdrawRequest.asset,
             withdrawRequest.amount,
-            withdrawRequest.recipient,
-            withdrawRequest.nonce
+            withdrawRequest.recipient
         );
     }
 
-    // function demand(
+    function claim(
 
-    // ) external {
+    ) external {
 
-    // }
+    }
+
+    function deposit(
+        address asset,
+        uint256 amount
+    ) external payable {
+        if (asset == address(0)) {
+            if (msg.value != amount) {
+                revert InsufficientFunds();
+            }
+        } else {
+            SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), amount);
+        }
+
+        emit Deposit(
+            asset,
+            amount
+        );
+    }
 
     /**
      * @notice Allows the caller to withdraw funds if a valid signature is passed.
@@ -225,7 +216,6 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
                 withdrawRequest.asset,
                 withdrawRequest.amount,
                 withdrawRequest.recipient,
-                withdrawRequest.nonce,
                 withdrawRequest.chainId,
                 withdrawRequest.validUntil,
                 withdrawRequest.validAfter,

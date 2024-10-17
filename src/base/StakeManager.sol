@@ -104,7 +104,7 @@ abstract contract StakeManager is IStakeManager {
      * Must first call unlockStake and wait for the unstakeDelay to pass.
      * @param recipient - The address to send withdrawn value.
      */
-    function withdraw(
+    function unstake(
         address asset,
         address payable recipient
     ) external {
