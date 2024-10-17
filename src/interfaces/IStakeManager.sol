@@ -24,7 +24,7 @@ interface IStakeManager {
         address indexed account,
         address indexed asset,
         uint256 amount,
-        address withdrawAddress
+        address recipient
     );
 
     event StakeClaimed(

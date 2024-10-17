@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
 
-import {MagicSpendPlusMinusHalf, WithdrawRequest, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
+import {MagicSpendPlusMinusHalf, WithdrawRequest, WithdrawRequestSignatures, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {ForceReverter} from "./utils/ForceReverter.sol";
 
@@ -20,8 +20,11 @@ contract MagicSpendPlusMinusHalfTest is Test {
     address signer;
     uint256 signerKey;
 
-    address bank;
-    uint256 bankKey;
+    address alice;
+    uint256 aliceKey;
+
+    address bob;
+    uint256 bobKey;
 
     ForceReverter forceReverter;
     MagicSpendPlusMinusHalf magicSpendPlusMinusHalf;
@@ -29,7 +32,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
     function setUp() external {
         (signer, signerKey) = makeAddrAndKey("signer");
-        (bank, bankKey) = makeAddrAndKey("bank");
+        (alice, aliceKey) = makeAddrAndKey("alice");
+        (bob, bobKey) = makeAddrAndKey("bob");
 
         magicSpendPlusMinusHalf = new MagicSpendPlusMinusHalf(OWNER, new address[](0));
         token = new TestERC20(18);
@@ -38,10 +42,10 @@ contract MagicSpendPlusMinusHalfTest is Test {
         vm.prank(OWNER);
         magicSpendPlusMinusHalf.addSigner(signer);
 
-        vm.deal(bank, 100 ether);
-        token.sudoMint(bank, 100 ether);
+        vm.deal(alice, 100 ether);
+        token.sudoMint(alice, 100 ether);
 
-        vm.prank(bank);
+        vm.prank(alice);
         token.approve(address(magicSpendPlusMinusHalf), 100 ether);
     }
 
@@ -64,13 +68,10 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
-
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(
             magicSpendPlusMinusHalf.getHash(withdrawRequest),
-            bank,
+            alice,
             asset,
             amount,
             RECIPIENT,
@@ -78,7 +79,17 @@ contract MagicSpendPlusMinusHalfTest is Test {
         );
 
         vm.prank(RECIPIENT);
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
+
+        magicSpendPlusMinusHalf.claim(
+            withdrawRequest,
+            signatures
+        );
         vm.assertEq(RECIPIENT.balance, 5 ether, "Withdrawn funds should go to recipient");
     }
 
@@ -101,13 +112,10 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
-
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(
             magicSpendPlusMinusHalf.getHash(withdrawRequest),
-            bank,
+            alice,
             asset,
             amount,
             RECIPIENT,
@@ -115,7 +123,14 @@ contract MagicSpendPlusMinusHalfTest is Test {
         );
 
         vm.prank(RECIPIENT);
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
+
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
         vm.assertEq(token.balanceOf(RECIPIENT), 5 ether, "Withdrawn funds should go to recipient");
     }
 
@@ -141,12 +156,15 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         // should throw if withdraw request was sent pass expiry.
         vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.RequestExpired.selector));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
     function test_RevertWhen_ValidAfterInvalid() external {
@@ -171,12 +189,15 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validUntil: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         // should throw if withdraw request was sent too early.
         vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.RequestNotYetValid.selector));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
 
@@ -200,11 +221,14 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, unauthorizedSingerKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, unauthorizedSingerKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.ETHTransferFailed.selector));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
     function test_RevertWhen_SignerSignatureInvalid() external {
@@ -227,11 +251,14 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, unauthorizedSingerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, unauthorizedSingerKey)
+        });
 
         vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.SignatureInvalid.selector));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
     function test_RevertWhen_NonceInvalid() external {
@@ -253,26 +280,29 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         // force burn nonce
         vm.expectEmit(address(magicSpendPlusMinusHalf));
 
         emit MagicSpendPlusMinusHalf.WithdrawRequestFulfilled(
             magicSpendPlusMinusHalf.getHash(withdrawRequest),
-            bank,
+            alice,
             asset,
             amount,
             RECIPIENT,
             nonce
         );
 
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
 
         // double spending should throw nonce error
         vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.NonceInvalid.selector, nonce));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
     function test_RevertWhen_WithdrawRequestTransferFailed() external {
@@ -292,20 +322,25 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         // should throw when ETH withdraw request could not be fulfilled due to insufficient funds.
         vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.ETHTransferFailed.selector));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
 
         // should throw when ERC20 withdraw request could not be fulfilled due to insufficient funds.
         withdrawRequest.asset = address(token);
-        accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        signature = signWithdrawRequest(withdrawRequest, signerKey);
+
+        signatures.requesterSignature = signWithdrawRequest(withdrawRequest, bobKey);
+        signatures.accountSignature = signWithdrawRequest(withdrawRequest, aliceKey);
+        signatures.magicSpendOperatorSignature = signWithdrawRequest(withdrawRequest, signerKey);
 
         vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.TransferFailed.selector));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
     function test_RevertWhen_PreCallReverts() external {
@@ -335,12 +370,15 @@ contract MagicSpendPlusMinusHalfTest is Test {
             value: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
         vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PreCallReverted.selector, revertBytes));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
     function test_RevertWhen_PostCallReverts() external {
@@ -370,17 +408,20 @@ contract MagicSpendPlusMinusHalfTest is Test {
             value: 0
         });
 
-        bytes memory accountSignature = signWithdrawRequest(withdrawRequest, bankKey);
-        bytes memory signature = signWithdrawRequest(withdrawRequest, signerKey);
+        WithdrawRequestSignatures memory signatures = WithdrawRequestSignatures({
+            requesterSignature: signWithdrawRequest(withdrawRequest, bobKey),
+            accountSignature: signWithdrawRequest(withdrawRequest, aliceKey),
+            magicSpendOperatorSignature: signWithdrawRequest(withdrawRequest, signerKey)
+        });
 
         vm.deal(address(magicSpendPlusMinusHalf), 100 ether);
         vm.prank(RECIPIENT);
         bytes memory revertBytes = abi.encodeWithSelector(ForceReverter.RevertWithMsg.selector, revertMessage);
         vm.expectRevert(abi.encodeWithSelector(MagicSpendPlusMinusHalf.PostCallReverted.selector, revertBytes));
-        magicSpendPlusMinusHalf.requestWithdraw(withdrawRequest, accountSignature, signature);
+        magicSpendPlusMinusHalf.claim(withdrawRequest, signatures);
     }
 
-    // = = = Helpers = = =
+    // // = = = Helpers = = =
 
     function signWithdrawRequest(WithdrawRequest memory withdrawRequest, uint256 signingKey)
         internal
@@ -395,7 +436,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         address asset,
         uint128 amount
     ) internal {
-        vm.prank(bank);
+        vm.prank(alice);
 
         if (asset == address(0)) {
             (bool success, bytes memory result) = address(magicSpendPlusMinusHalf).call{value: amount}("");
@@ -406,5 +447,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         } else {
             magicSpendPlusMinusHalf.addStake(asset, amount, 60);
         }
+
+        vm.stopPrank();
     }
 }

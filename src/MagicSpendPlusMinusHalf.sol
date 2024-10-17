@@ -46,6 +46,12 @@ struct WithdrawRequest {
     uint48 validAfter;
 }
 
+struct WithdrawRequestSignatures {
+    bytes requesterSignature;
+    bytes accountSignature;
+    bytes magicSpendOperatorSignature;
+}
+
 /// @title MagicSpendPlusMinusHalf
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/MagicSpendPlusMinusHalf.sol)
 /// @notice Contract that allows users to pull funds from if they provide a valid signed withdrawRequest.
@@ -57,7 +63,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     error RequestExpired();
 
     /// @notice Thrown when the request was submitted with an invalid chain id.
-    error RequestInvlidChain();
+    error RequestInvalidChain();
 
     /// @notice Thrown when the request was submitted before its validAfter.
     error RequestNotYetValid();
@@ -99,13 +105,12 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     /**
      * @notice Fulfills a withdraw request only if it has a valid signature and passes validation.
      */
-    function requestWithdraw(
+    function claim(
         WithdrawRequest calldata withdrawRequest,
-        bytes memory accountSignature,
-        bytes memory signature
+        WithdrawRequestSignatures calldata signatures
     ) external {
         if (withdrawRequest.chainId != block.chainid) {
-            revert RequestInvlidChain();
+            revert RequestInvalidChain();
         }
 
         if (block.timestamp > withdrawRequest.validUntil && withdrawRequest.validUntil != 0) {
@@ -120,10 +125,16 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         bytes32 hash_ = getHash(withdrawRequest);
 
         // - derive account from the signature
-        address account = ECDSA.recover(hash_, accountSignature);
+        address account = ECDSA.recover(
+            hash_,
+            signatures.accountSignature
+        );
 
         // - check signature is authorized
-        address signer = ECDSA.recover(hash_, signature);
+        address signer = ECDSA.recover(
+            hash_,
+            signatures.magicSpendOperatorSignature
+        );
 
         if (!signers[signer]) {
             revert SignatureInvalid();
@@ -193,6 +204,12 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
             withdrawRequest.nonce
         );
     }
+
+    // function demand(
+
+    // ) external {
+
+    // }
 
     /**
      * @notice Allows the caller to withdraw funds if a valid signature is passed.
