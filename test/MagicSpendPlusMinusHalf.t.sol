@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import {Test, console} from "forge-std/Test.sol";
 
-import {MagicSpendPlusMinusHalf, Request, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
+import {MagicSpendPlusMinusHalf, Request, RequestExecutionType, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {ForceReverter} from "./utils/ForceReverter.sol";
 
@@ -76,8 +76,9 @@ contract MagicSpendPlusMinusHalfTest is Test {
         });
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.RequestWithdrawn(
-            magicSpendPlusMinusHalf.getHash(request)
+        emit MagicSpendPlusMinusHalf.RequestExecuted(
+            magicSpendPlusMinusHalf.getHash(request),
+            RequestExecutionType.WITHDRAWN
         );
 
         vm.prank(RECIPIENT);
@@ -111,8 +112,9 @@ contract MagicSpendPlusMinusHalfTest is Test {
         });
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.RequestWithdrawn(
-            magicSpendPlusMinusHalf.getHash(request)
+        emit MagicSpendPlusMinusHalf.RequestExecuted(
+            magicSpendPlusMinusHalf.getHash(request),
+            RequestExecutionType.WITHDRAWN
         );
 
         vm.chainId(withdrawChainId);
@@ -247,8 +249,9 @@ contract MagicSpendPlusMinusHalfTest is Test {
         // force burn nonce
         vm.expectEmit(address(magicSpendPlusMinusHalf));
 
-        emit MagicSpendPlusMinusHalf.RequestWithdrawn(
-            magicSpendPlusMinusHalf.getHash(request)
+        emit MagicSpendPlusMinusHalf.RequestExecuted(
+            magicSpendPlusMinusHalf.getHash(request),
+            RequestExecutionType.WITHDRAWN
         );
 
         magicSpendPlusMinusHalf.withdraw(request, signature);
@@ -388,8 +391,9 @@ contract MagicSpendPlusMinusHalfTest is Test {
         bytes memory signature = signWithdrawRequest(request, aliceKey);
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.RequestClaimed(
-            magicSpendPlusMinusHalf.getHash(request)
+        emit MagicSpendPlusMinusHalf.RequestExecuted(
+            magicSpendPlusMinusHalf.getHash(request),
+            RequestExecutionType.CLAIMED
         );
 
         magicSpendPlusMinusHalf.claim(
@@ -425,8 +429,9 @@ contract MagicSpendPlusMinusHalfTest is Test {
         bytes memory signature = signWithdrawRequest(request, aliceKey);
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
-        emit MagicSpendPlusMinusHalf.RequestClaimed(
-            magicSpendPlusMinusHalf.getHash(request)
+        emit MagicSpendPlusMinusHalf.RequestExecuted(
+            magicSpendPlusMinusHalf.getHash(request),
+            RequestExecutionType.CLAIMED
         );
 
         magicSpendPlusMinusHalf.claim(

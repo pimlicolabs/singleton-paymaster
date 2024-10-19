@@ -55,6 +55,17 @@ struct Request {
     uint128 unstakeDelaySec;
 }
 
+struct RequestStatus {
+    bool withdrawn;
+    bool claimed;
+}
+
+enum RequestExecutionType {
+    WITHDRAWN,
+    CLAIMED
+}
+
+
 
 /// @title MagicSpendPlusMinusHalf
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/MagicSpendPlusMinusHalf.sol)
@@ -86,11 +97,11 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     /// @param revertReason The revert bytes.
     error PostCallReverted(bytes revertReason);
 
-    /// @notice Emitted when a withdraw request has been fulfilled.
-    event RequestWithdrawn(bytes32 indexed requestHash);
-
-    /// @notice Emitted when a claim request has been fulfilled.
-    event RequestClaimed(bytes32 indexed requestHash);
+    /// @notice Emitted when a withdraw request has been executed (either claimed or withdrawn).
+    event RequestExecuted(
+        bytes32 indexed hash_,
+        RequestExecutionType executionType
+    );
 
     /// @notice Emitted when a deposit has been made.
     event Deposit(
@@ -98,12 +109,6 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
         uint256 amount
     );
 
-    struct RequestStatus {
-        bool withdrawn;
-        bool claimed;
-    }
-
-    mapping(address asset => uint256 amount) public balances;
     mapping(bytes32 hash_ => RequestStatus status) public statuses;
 
     constructor(
@@ -187,13 +192,13 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
 
         statuses[hash_].withdrawn = true;
 
-        emit RequestWithdrawn(hash_);
+        emit RequestExecuted(hash_, RequestExecutionType.WITHDRAWN);
     }
 
     function claim(
         Request calldata request,
         bytes calldata signature
-    ) external {
+    ) public {
         bytes32 hash_ = getHash(request);
 
         address account = ECDSA.recover(
@@ -216,9 +221,16 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
 
         statuses[hash_].claimed = true;
 
-        emit RequestClaimed(
-            hash_
-        );
+        emit RequestExecuted(hash_, RequestExecutionType.CLAIMED);
+    }
+
+    function claimMany(
+        Request[] calldata requests,
+        bytes[] calldata signatures
+    ) external {
+        for (uint256 i = 0; i < requests.length; i++) {
+            claim(requests[i], signatures[i]);
+        }
     }
 
     function deposit(
