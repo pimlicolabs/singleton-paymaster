@@ -12,34 +12,27 @@ interface IStakeManager {
     error StakeIsLocked();
     error InsufficientFunds();
 
-    // Emitted when stake or unstake delay are modified.
-    event StakeLocked(
-        address indexed account,
-        address indexed asset,
-        uint256 amount,
-        uint256 withdrawTime
-    );
+    enum StakeUpdateEvent {
+        ADDED,
+        UNSTAKED,
+        CLAIMED
+    }
 
-    event StakeWithdrawn(
+    event StakeUpdated(
+        StakeUpdateEvent event_,
         address indexed account,
         address indexed asset,
-        uint256 amount,
-        address recipient
-    );
-
-    event StakeClaimed(
-        address indexed account,
-        address indexed asset,
-        uint256 amount
+        uint128 amount,
+        uint128 withdrawTime
     );
 
     /**
      * @param stake           - Actual amount of ether staked for this entity.
-     * @param withdrawTime    - First block timestamp where 'withdrawStake' will be callable, or zero if already locked.
+     * @param unstakeTime    - First block timestamp where 'unstake' will be callable.
      */
     struct StakeInfo {
         uint128 stake;
-        uint128 withdrawTime;
+        uint128 unstakeTime;
     }
 
     /**

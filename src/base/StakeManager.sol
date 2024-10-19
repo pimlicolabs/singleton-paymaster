@@ -49,9 +49,9 @@ abstract contract StakeManager is IStakeManager {
     ) public payable {
         StakeInfo storage info = stakes[msg.sender][asset];
 
-        uint128 newWithdrawTime = uint128(block.timestamp) + unstakeDelaySec;
+        uint128 unstakeTime = uint128(block.timestamp) + unstakeDelaySec;
 
-        if (unstakeDelaySec == 0 || newWithdrawTime < info.withdrawTime) {
+        if (unstakeDelaySec == 0 || unstakeTime < info.unstakeTime) {
             revert InvalidUnstakeDelay();
         }
 
@@ -64,11 +64,9 @@ abstract contract StakeManager is IStakeManager {
             revert StakeTooHigh();
         }
 
-        uint256 withdrawTime = block.timestamp + unstakeDelaySec;
-
         stakes[msg.sender][asset] = StakeInfo(
             uint128(stake),
-            uint128(withdrawTime)
+            uint128(unstakeTime)
         );
 
         if (asset == ETH) {
@@ -79,22 +77,47 @@ abstract contract StakeManager is IStakeManager {
             SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), amount);
         }
 
-        emit StakeLocked(msg.sender, asset, amount, withdrawTime);
+        emit StakeUpdated(
+            StakeUpdateEvent.ADDED,
+            msg.sender,
+            asset,
+            amount,
+            unstakeTime
+        );
     }
 
-    function _decreaseStake(
+    function _claimStake(
         address account,
         address asset,
-        uint128 amount
+        uint128 amount,
+        uint128 newUnstakeDelaySec
     ) internal {
         StakeInfo storage info = stakes[account][asset];
-        uint256 stake = info.stake;
+        uint128 stake = info.stake;
 
         if (stake < amount) {
             revert StakeTooLow();
         }
 
-        info.stake = uint128(stake - amount);
+        info.stake = stake - amount;
+
+        uint128 unstakeTime = info.unstakeTime;
+
+        if (newUnstakeDelaySec != 0) {
+            uint128 newUnstakeTime = uint128(block.timestamp) + newUnstakeDelaySec;
+
+            if (newUnstakeTime > unstakeTime) {
+                info.unstakeTime = newUnstakeTime;
+            }
+        }
+
+        emit StakeUpdated(
+            StakeUpdateEvent.CLAIMED,
+            account,
+            asset,
+            info.stake,
+            info.unstakeTime
+        );
     }
 
     /**
@@ -113,19 +136,25 @@ abstract contract StakeManager is IStakeManager {
             revert StakeTooLow();
         }
 
-        if (info.withdrawTime > block.timestamp) {
+        if (info.unstakeTime > block.timestamp) {
             revert StakeIsLocked();
         }
 
-        info.withdrawTime = 0;
+        info.unstakeTime = 0;
         info.stake = 0;
-
-        emit StakeWithdrawn(msg.sender, asset, stake, recipient);
 
         if (asset == ETH) {
             SafeTransferLib.safeTransferETH(recipient, stake);
         } else {
             SafeTransferLib.safeTransfer(asset, recipient, stake);
         }
+
+        emit StakeUpdated(
+            StakeUpdateEvent.UNSTAKED,
+            msg.sender,
+            asset,
+            0,
+            0
+        );
     }
 }

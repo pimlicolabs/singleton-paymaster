@@ -12,7 +12,6 @@ contract MagicSpendPlusMinusHalfScript is Script {
         address deployer = vm.rememberKey(vm.envUint("DEPLOYER"));
         address owner = vm.rememberKey(vm.envUint("OWNER"));
         address signer = vm.rememberKey(vm.envUint("SIGNER"));
-        address alice = vm.rememberKey(vm.envUint("ALICE"));
 
         bytes32 salt = vm.envBytes32("SALT");
 
@@ -26,18 +25,12 @@ contract MagicSpendPlusMinusHalfScript is Script {
             signers
         );
 
+        instance.deposit{value: 0.01 ether}(address(0), 0.01 ether);
+
         vm.stopBroadcast();
 
-        // vm.deal(alice, 1 ether);
-        vm.startBroadcast(alice);
-
-        instance.addStake{
-            value: 0.05 ether
-        }(
-            address(0),
-            0.05 ether,
-            86400
-        );
+        vm.startBroadcast(owner);
+        instance.addSigner(signer);
         vm.stopBroadcast();
 
         return address(instance);

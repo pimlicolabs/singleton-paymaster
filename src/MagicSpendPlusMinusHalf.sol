@@ -49,6 +49,10 @@ struct Request {
     uint48 validUntil;
     /// @dev The time in which this request is valid after.
     uint48 validAfter;
+    /// @dev The new unstakeDelaySec for the user after the request is claimed.
+    /// @dev If 0, the unstakeDelaySec will not be updated.
+    /// @dev Ignored if results in a value lower then the current one.
+    uint128 unstakeDelaySec;
 }
 
 
@@ -83,21 +87,10 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     error PostCallReverted(bytes revertReason);
 
     /// @notice Emitted when a withdraw request has been fulfilled.
-    event RequestWithdrawn(
-        bytes32 indexed requestHash,
-        address indexed asset,
-        uint128 amount,
-        address recipient
-    );
+    event RequestWithdrawn(bytes32 indexed requestHash);
 
     /// @notice Emitted when a claim request has been fulfilled.
-    event RequestClaimed(
-        bytes32 indexed requestHash,
-        address indexed asset,
-        uint128 amount,
-        uint128 fee,
-        address account
-    );
+    event RequestClaimed(bytes32 indexed requestHash);
 
     /// @notice Emitted when a deposit has been made.
     event Deposit(
@@ -194,12 +187,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
 
         statuses[hash_].withdrawn = true;
 
-        emit RequestWithdrawn(
-            hash_,
-            request.asset,
-            request.amount,
-            request.recipient
-        );
+        emit RequestWithdrawn(hash_);
     }
 
     function claim(
@@ -219,20 +207,17 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
 
         uint128 amount = request.amount + request.fee;
 
-        _decreaseStake(
+        _claimStake(
             account,
             request.asset,
-            amount
+            amount,
+            request.unstakeDelaySec
         );
 
         statuses[hash_].claimed = true;
 
         emit RequestClaimed(
-            hash_,
-            request.asset,
-            request.amount,
-            request.fee,
-            account
+            hash_
         );
     }
 
@@ -261,6 +246,9 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
      * @return The hashed withdraw request.
      */
     function getHash(Request calldata request) public view returns (bytes32) {
+        bytes32 validityDigest = keccak256(abi.encode(request.validUntil, request.validAfter));
+        bytes32 callsDigest = keccak256(abi.encode(request.preCalls, request.postCalls));
+
         bytes32 digest = keccak256(
             abi.encode(
                 address(this),
@@ -271,10 +259,9 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
                 request.recipient,
                 request.withdrawChainId,
                 request.claimChainId,
-                request.validUntil,
-                request.validAfter,
-                keccak256(abi.encode(request.preCalls)),
-                keccak256(abi.encode(request.postCalls))
+                request.unstakeDelaySec,
+                validityDigest,
+                callsDigest
             )
         );
 

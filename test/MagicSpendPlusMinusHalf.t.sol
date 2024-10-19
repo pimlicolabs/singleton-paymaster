@@ -71,15 +71,13 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestWithdrawn(
-            magicSpendPlusMinusHalf.getHash(request),
-            asset,
-            amount,
-            RECIPIENT
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         vm.prank(RECIPIENT);
@@ -108,15 +106,13 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestWithdrawn(
-            magicSpendPlusMinusHalf.getHash(request),
-            asset,
-            amount,
-            RECIPIENT
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         vm.chainId(withdrawChainId);
@@ -148,7 +144,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validUntil: testValidUntil,
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         bytes memory signature = signWithdrawRequest(request, signerKey);
@@ -182,7 +179,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             validAfter: testValidAfter,
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
-            validUntil: 0
+            validUntil: 0,
+            unstakeDelaySec: 0
         });
 
         bytes memory signature = signWithdrawRequest(request, signerKey);
@@ -212,7 +210,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         bytes memory signature = signWithdrawRequest(request, unauthorizedSingerKey);
@@ -239,7 +238,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         bytes memory signature = signWithdrawRequest(request, signerKey);
@@ -248,10 +248,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
         vm.expectEmit(address(magicSpendPlusMinusHalf));
 
         emit MagicSpendPlusMinusHalf.RequestWithdrawn(
-            magicSpendPlusMinusHalf.getHash(request),
-            asset,
-            amount,
-            RECIPIENT
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.withdraw(request, signature);
@@ -276,7 +273,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         bytes memory signature = signWithdrawRequest(request, signerKey);
@@ -312,7 +310,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](1),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
         // force a revert by calling non existant function
         request.preCalls[0] = CallStruct({
@@ -348,7 +347,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](1),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
         // force a revert by calling non existant function
         request.postCalls[0] = CallStruct({
@@ -379,7 +379,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         vm.chainId(claimChainId);
@@ -388,11 +389,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestClaimed(
-            magicSpendPlusMinusHalf.getHash(request),
-            asset,
-            amount,
-            fee,
-            alice
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.claim(
@@ -420,7 +417,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
             preCalls: new CallStruct[](0),
             postCalls: new CallStruct[](0),
             validUntil: 0,
-            validAfter: 0
+            validAfter: 0,
+            unstakeDelaySec: 0
         });
 
         vm.chainId(withdrawChainId);
@@ -428,11 +426,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestClaimed(
-            magicSpendPlusMinusHalf.getHash(request),
-            asset,
-            amount,
-            fee,
-            alice
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.claim(
