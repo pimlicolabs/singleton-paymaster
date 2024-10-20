@@ -22,8 +22,9 @@ interface IStakeManager {
         StakeUpdateEvent event_,
         address indexed account,
         address indexed asset,
+        uint128 diff,
         uint128 amount,
-        uint128 withdrawTime
+        uint128 unstakeTime
     );
 
     /**

@@ -127,7 +127,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     function withdraw(
         Request calldata request,
         bytes calldata signature
-    ) external {
+    ) external nonReentrant {
         if (request.withdrawChainId != block.chainid) {
             revert RequestInvalidChain();
         }
@@ -198,7 +198,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
     function claim(
         Request calldata request,
         bytes calldata signature
-    ) public {
+    ) public nonReentrant {
         bytes32 hash_ = getHash(request);
 
         address account = ECDSA.recover(

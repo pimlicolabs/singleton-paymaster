@@ -3,6 +3,7 @@ pragma solidity ^0.8.23;
 
 import "./../interfaces/IStakeManager.sol";
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import {ReentrancyGuard} from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGuard.sol";
 
 /* solhint-disable avoid-low-level-calls */
 /* solhint-disable not-rely-on-time */
@@ -12,7 +13,7 @@ import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
  * Deposit is just a balance used to pay for UserOperations (either by a paymaster or an account).
  * Stake is value locked for at least "unstakeDelay" by a paymaster.
  */
-abstract contract StakeManager is IStakeManager {
+abstract contract StakeManager is IStakeManager, ReentrancyGuard {
     /// maps account to asset to stake
     mapping(address => mapping(address => StakeInfo)) private stakes;
 
@@ -26,7 +27,6 @@ abstract contract StakeManager is IStakeManager {
     ) public view returns (StakeInfo memory info) {
         return stakes[account][asset];
     }
-
 
     /// @inheritdoc IStakeManager
     function stakeOf(address account, address asset) public view returns (uint256) {
@@ -46,7 +46,7 @@ abstract contract StakeManager is IStakeManager {
         address asset,
         uint128 amount,
         uint32 unstakeDelaySec
-    ) public payable {
+    ) public nonReentrant payable {
         StakeInfo storage info = stakes[msg.sender][asset];
 
         uint128 unstakeTime = uint128(block.timestamp) + unstakeDelaySec;
@@ -55,7 +55,7 @@ abstract contract StakeManager is IStakeManager {
             revert InvalidUnstakeDelay();
         }
 
-        uint256 stake = info.stake + amount;
+        uint128 stake = info.stake + amount;
         if (stake == 0) {
             revert StakeTooLow();
         }
@@ -65,8 +65,8 @@ abstract contract StakeManager is IStakeManager {
         }
 
         stakes[msg.sender][asset] = StakeInfo(
-            uint128(stake),
-            uint128(unstakeTime)
+            stake,
+            unstakeTime
         );
 
         if (asset == ETH) {
@@ -82,6 +82,7 @@ abstract contract StakeManager is IStakeManager {
             msg.sender,
             asset,
             amount,
+            stake,
             unstakeTime
         );
     }
@@ -115,6 +116,7 @@ abstract contract StakeManager is IStakeManager {
             StakeUpdateEvent.CLAIMED,
             account,
             asset,
+            amount,
             info.stake,
             info.unstakeTime
         );
@@ -128,9 +130,9 @@ abstract contract StakeManager is IStakeManager {
     function unstake(
         address asset,
         address payable recipient
-    ) external {
+    ) external nonReentrant {
         StakeInfo storage info = stakes[msg.sender][asset];
-        uint256 stake = info.stake;
+        uint128 stake = info.stake;
 
         if (stake == 0) {
             revert StakeTooLow();
@@ -153,6 +155,7 @@ abstract contract StakeManager is IStakeManager {
             StakeUpdateEvent.UNSTAKED,
             msg.sender,
             asset,
+            stake,
             0,
             0
         );
