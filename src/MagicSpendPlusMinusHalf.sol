@@ -277,4 +277,16 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
 
         return MessageHashUtils.toEthSignedMessageHash(digest);
     }
+
+    function getStatus(
+        bytes32[] memory hashes
+    ) external view returns (RequestStatus[] memory) {
+        RequestStatus[] memory _statuses = new RequestStatus[](hashes.length);
+
+        for (uint256 i = 0; i < hashes.length; i++) {
+            _statuses[i] = statuses[hashes[i]];
+        }
+
+        return _statuses;
+    }
 }
