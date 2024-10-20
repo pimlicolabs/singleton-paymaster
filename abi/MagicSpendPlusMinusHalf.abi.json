@@ -807,16 +807,16 @@
     "name": "RequestExecuted",
     "inputs": [
       {
-        "name": "hash_",
-        "type": "bytes32",
-        "indexed": true,
-        "internalType": "bytes32"
-      },
-      {
         "name": "event_",
         "type": "uint8",
         "indexed": false,
         "internalType": "enum RequestExecutionType"
+      },
+      {
+        "name": "hash_",
+        "type": "bytes32",
+        "indexed": true,
+        "internalType": "bytes32"
       }
     ],
     "anonymous": false

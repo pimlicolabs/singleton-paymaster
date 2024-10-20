@@ -77,8 +77,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestExecuted(
-            magicSpendPlusMinusHalf.getHash(request),
-            RequestExecutionType.WITHDRAWN
+            RequestExecutionType.WITHDRAWN,
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         vm.prank(RECIPIENT);
@@ -114,8 +114,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
         vm.chainId(withdrawChainId);
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestExecuted(
-            magicSpendPlusMinusHalf.getHash(request),
-            RequestExecutionType.WITHDRAWN
+            RequestExecutionType.WITHDRAWN,
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.withdraw(
@@ -249,8 +249,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
         vm.expectEmit(address(magicSpendPlusMinusHalf));
 
         emit MagicSpendPlusMinusHalf.RequestExecuted(
-            magicSpendPlusMinusHalf.getHash(request),
-            RequestExecutionType.WITHDRAWN
+            RequestExecutionType.WITHDRAWN,
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.withdraw(request, signature);
@@ -391,8 +391,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestExecuted(
-            magicSpendPlusMinusHalf.getHash(request),
-            RequestExecutionType.CLAIMED
+            RequestExecutionType.CLAIMED,
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.claim(
@@ -429,8 +429,8 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestExecuted(
-            magicSpendPlusMinusHalf.getHash(request),
-            RequestExecutionType.CLAIMED
+            RequestExecutionType.CLAIMED,
+            magicSpendPlusMinusHalf.getHash(request)
         );
 
         magicSpendPlusMinusHalf.claim(

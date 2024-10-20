@@ -98,8 +98,8 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager, LiquidityMana
 
     /// @notice Emitted when a withdraw request has been executed (either claimed or withdrawn).
     event RequestExecuted(
-        bytes32 indexed hash_,
-        RequestExecutionType event_
+        RequestExecutionType event_,
+        bytes32 indexed hash_
     );
 
     mapping(bytes32 hash_ => RequestStatus status) public statuses;
@@ -187,7 +187,7 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager, LiquidityMana
 
         statuses[hash_].withdrawn = true;
 
-        emit RequestExecuted(hash_, RequestExecutionType.WITHDRAWN);
+        emit RequestExecuted(RequestExecutionType.WITHDRAWN, hash_);
     }
 
     function claim(
@@ -225,7 +225,7 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager, LiquidityMana
 
         statuses[hash_].claimed = true;
 
-        emit RequestExecuted(hash_, RequestExecutionType.CLAIMED);
+        emit RequestExecuted(RequestExecutionType.CLAIMED, hash_);
     }
 
     function claimMany(
