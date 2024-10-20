@@ -9,9 +9,12 @@ import {ReentrancyGuard} from "@openzeppelin-v5.0.2/contracts/utils/ReentrancyGu
 /* solhint-disable not-rely-on-time */
 
 /**
- * Manage deposits and stakes.
- * Deposit is just a balance used to pay for UserOperations (either by a paymaster or an account).
- * Stake is value locked for at least "unstakeDelay" by a paymaster.
+ * Manages stakes.
+ * Stakes are locked for a period of time.
+ * Stakes can be added, claimed, and removed.
+ * - To add stake, call `addStake` with the asset and amount.
+ * - Stake is claimed every time `MagicSpendPlusMinusHalf.claim` is called
+ * - To remove stake, call `removeStake` with the asset and recipient. No partical unstakes are allowed.
  */
 abstract contract StakeManager is IStakeManager, ReentrancyGuard {
     /// maps account to asset to stake
@@ -123,9 +126,9 @@ abstract contract StakeManager is IStakeManager, ReentrancyGuard {
     }
 
     /**
-     * Withdraw from the stake.
-     * @param asset     - The asset to withdraw.
-     * @param recipient - The address to send withdrawn value.
+     * Remove the stake.
+     * @param asset     - The asset to remove.
+     * @param recipient - The address to send removed value.
      */
     function removeStake(
         address asset,

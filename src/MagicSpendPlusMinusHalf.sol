@@ -99,7 +99,7 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager, LiquidityMana
     /// @notice Emitted when a withdraw request has been executed (either claimed or withdrawn).
     event RequestExecuted(
         bytes32 indexed hash_,
-        RequestExecutionType executionType
+        RequestExecutionType event_
     );
 
     mapping(bytes32 hash_ => RequestStatus status) public statuses;
