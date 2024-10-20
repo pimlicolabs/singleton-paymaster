@@ -13,6 +13,7 @@ import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
 import {Signer} from "./base/Signer.sol";
 import {StakeManager} from "./base/StakeManager.sol";
+import {LiquidityManager} from "./base/LiquidityManager.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
@@ -71,7 +72,7 @@ enum RequestExecutionType {
 /// @notice Contract that allows users to pull funds from if they provide a valid signed request.
 /// @dev Inherits from Ownable.
 /// @custom:security-contact security@pimlico.io
-contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
+contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager, LiquidityManager {
     /// @notice Thrown when the request was submitted past its validUntil.
     error RequestExpired();
 
@@ -99,12 +100,6 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
     event RequestExecuted(
         bytes32 indexed hash_,
         RequestExecutionType executionType
-    );
-
-    /// @notice Emitted when a deposit has been made.
-    event Deposit(
-        address indexed asset,
-        uint256 amount
     );
 
     mapping(bytes32 hash_ => RequestStatus status) public statuses;
@@ -169,6 +164,8 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
         }
 
         // fulfil withdraw request
+        _removeLiquidity(request.asset, request.amount);
+
         if (request.asset == address(0)) {
             SafeTransferLib.forceSafeTransferETH(request.recipient, request.amount);
         } else {
@@ -208,14 +205,23 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
             revert AlreadyUsed();
         }
 
-        uint128 amount = request.amount + request.fee;
-
         _claimStake(
             account,
             request.asset,
-            amount,
+            request.amount + request.fee,
             request.unstakeDelaySec
         );
+
+        _addLiquidity(request.asset, request.amount);
+
+        // Immediately transfer the fee to the owner, cheaper than storing it
+        if (request.fee > 0) {
+            if (request.asset == address(0)) {
+                SafeTransferLib.forceSafeTransferETH(owner(), request.fee);
+            } else {
+                SafeTransferLib.safeTransfer(request.asset, owner(), request.fee);
+            }
+        }
 
         statuses[hash_].claimed = true;
 
@@ -229,24 +235,6 @@ contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
         for (uint256 i = 0; i < requests.length; i++) {
             claim(requests[i], signatures[i]);
         }
-    }
-
-    function deposit(
-        address asset,
-        uint256 amount
-    ) external payable {
-        if (asset == address(0)) {
-            if (msg.value != amount) {
-                revert InsufficientFunds();
-            }
-        } else {
-            SafeTransferLib.safeTransferFrom(asset, msg.sender, address(this), amount);
-        }
-
-        emit Deposit(
-            asset,
-            amount
-        );
     }
 
     /**

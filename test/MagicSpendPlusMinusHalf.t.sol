@@ -4,6 +4,7 @@ pragma solidity ^0.8.0;
 import {Test, console} from "forge-std/Test.sol";
 
 import {MagicSpendPlusMinusHalf, Request, RequestExecutionType, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
+import {LiquidityManager} from "./../src/base/LiquidityManager.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {ForceReverter} from "./utils/ForceReverter.sol";
 
@@ -91,7 +92,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
     }
 
     function testWithdrawERC20TokenSuccess() external {
-        _deposit(address(0), amount);
+        _deposit(address(token), amount);
         _addStake(address(token), amount);
 
         address asset = address(token);
@@ -110,13 +111,12 @@ contract MagicSpendPlusMinusHalfTest is Test {
             unstakeDelaySec: 0
         });
 
+        vm.chainId(withdrawChainId);
         vm.expectEmit(address(magicSpendPlusMinusHalf));
         emit MagicSpendPlusMinusHalf.RequestExecuted(
             magicSpendPlusMinusHalf.getHash(request),
             RequestExecutionType.WITHDRAWN
         );
-
-        vm.chainId(withdrawChainId);
 
         magicSpendPlusMinusHalf.withdraw(
             request,
@@ -282,14 +282,14 @@ contract MagicSpendPlusMinusHalfTest is Test {
         bytes memory signature = signWithdrawRequest(request, signerKey);
 
         // should throw when ETH withdraw request could not be fulfilled due to insufficient funds.
-        vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.ETHTransferFailed.selector));
+        vm.expectRevert(abi.encodeWithSelector(LiquidityManager.InsufficientLiquidity.selector, asset));
         magicSpendPlusMinusHalf.withdraw(request, signature);
 
         // should throw when ERC20 withdraw request could not be fulfilled due to insufficient funds.
         request.asset = address(token);
         signature = signWithdrawRequest(request, signerKey);
 
-        vm.expectRevert(abi.encodeWithSelector(SafeTransferLib.TransferFailed.selector));
+        vm.expectRevert(abi.encodeWithSelector(LiquidityManager.InsufficientLiquidity.selector, address(token)));
         magicSpendPlusMinusHalf.withdraw(request, signature);
     }
 
@@ -461,7 +461,7 @@ contract MagicSpendPlusMinusHalfTest is Test {
     ) internal {
         vm.prank(signer);
 
-        magicSpendPlusMinusHalf.deposit{
+        magicSpendPlusMinusHalf.addLiquidity{
             value: asset == address(0) ? amount_ : 0
         }(asset, amount_);
 

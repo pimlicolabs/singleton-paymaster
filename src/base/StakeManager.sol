@@ -124,10 +124,10 @@ abstract contract StakeManager is IStakeManager, ReentrancyGuard {
 
     /**
      * Withdraw from the stake.
-     * Must first call unlockStake and wait for the unstakeDelay to pass.
+     * @param asset     - The asset to withdraw.
      * @param recipient - The address to send withdrawn value.
      */
-    function unstake(
+    function removeStake(
         address asset,
         address payable recipient
     ) external nonReentrant {
@@ -152,7 +152,7 @@ abstract contract StakeManager is IStakeManager, ReentrancyGuard {
         }
 
         emit StakeUpdated(
-            StakeUpdateEvent.UNSTAKED,
+            StakeUpdateEvent.REMOVED,
             msg.sender,
             asset,
             stake,

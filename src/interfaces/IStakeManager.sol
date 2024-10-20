@@ -14,7 +14,7 @@ interface IStakeManager {
 
     enum StakeUpdateEvent {
         ADDED,
-        UNSTAKED,
+        REMOVED,
         CLAIMED
     }
 
@@ -72,11 +72,11 @@ interface IStakeManager {
     ) external payable;
 
     /**
-     * Withdraw from the stake.
+     * Remove stake (partical unstake is not available).
      * @param asset   - The asset to use.
      * @param recipient - The address to send withdrawn value.
      */
-    function unstake(
+    function removeStake(
         address asset,
         address payable recipient
     ) external;

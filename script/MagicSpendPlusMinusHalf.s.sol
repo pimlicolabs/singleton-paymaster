@@ -23,7 +23,7 @@ contract MagicSpendPlusMinusHalfScript is Script {
             signer
         );
 
-        instance.deposit{value: 0.01 ether}(address(0), 0.01 ether);
+        instance.addLiquidity{value: 0.01 ether}(address(0), 0.01 ether);
 
         vm.stopBroadcast();
 
