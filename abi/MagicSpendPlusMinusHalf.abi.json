@@ -47,6 +47,24 @@
   },
   {
     "type": "function",
+    "name": "addLiquidity",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "payable"
+  },
+  {
+    "type": "function",
     "name": "addSigner",
     "inputs": [
       {
@@ -301,21 +319,22 @@
   },
   {
     "type": "function",
-    "name": "deposit",
+    "name": "getBalance",
     "inputs": [
       {
         "name": "asset",
         "type": "address",
         "internalType": "address"
-      },
-      {
-        "name": "amount",
-        "type": "uint256",
-        "internalType": "uint256"
       }
     ],
-    "outputs": [],
-    "stateMutability": "payable"
+    "outputs": [
+      {
+        "name": "",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "stateMutability": "view"
   },
   {
     "type": "function",
@@ -522,6 +541,42 @@
   },
   {
     "type": "function",
+    "name": "removeLiquidity",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "amount",
+        "type": "uint128",
+        "internalType": "uint128"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "removeStake",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      },
+      {
+        "name": "recipient",
+        "type": "address",
+        "internalType": "address payable"
+      }
+    ],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
     "name": "renounceOwnership",
     "inputs": [],
     "outputs": [],
@@ -583,24 +638,6 @@
         "name": "newOwner",
         "type": "address",
         "internalType": "address"
-      }
-    ],
-    "outputs": [],
-    "stateMutability": "nonpayable"
-  },
-  {
-    "type": "function",
-    "name": "unstake",
-    "inputs": [
-      {
-        "name": "asset",
-        "type": "address",
-        "internalType": "address"
-      },
-      {
-        "name": "recipient",
-        "type": "address",
-        "internalType": "address payable"
       }
     ],
     "outputs": [],
@@ -717,8 +754,14 @@
   },
   {
     "type": "event",
-    "name": "Deposit",
+    "name": "LiquidityUpdated",
     "inputs": [
+      {
+        "name": "event_",
+        "type": "uint8",
+        "indexed": false,
+        "internalType": "enum LiquidityManager.LiquidityUpdateEvent"
+      },
       {
         "name": "asset",
         "type": "address",
@@ -726,10 +769,16 @@
         "internalType": "address"
       },
       {
-        "name": "amount",
-        "type": "uint256",
+        "name": "diff",
+        "type": "uint128",
         "indexed": false,
-        "internalType": "uint256"
+        "internalType": "uint128"
+      },
+      {
+        "name": "amount",
+        "type": "uint128",
+        "indexed": false,
+        "internalType": "uint128"
       }
     ],
     "anonymous": false
@@ -764,7 +813,7 @@
         "internalType": "bytes32"
       },
       {
-        "name": "executionType",
+        "name": "event_",
         "type": "uint8",
         "indexed": false,
         "internalType": "enum RequestExecutionType"
@@ -864,6 +913,17 @@
     "type": "error",
     "name": "InsufficientFunds",
     "inputs": []
+  },
+  {
+    "type": "error",
+    "name": "InsufficientLiquidity",
+    "inputs": [
+      {
+        "name": "asset",
+        "type": "address",
+        "internalType": "address"
+      }
+    ]
   },
   {
     "type": "error",
