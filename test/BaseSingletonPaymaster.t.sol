@@ -16,7 +16,9 @@ import {BasePaymaster} from "../src/base/BasePaymaster.sol";
 import {TestERC20} from "./utils/TestERC20.sol";
 import {TestCounter} from "./utils/TestCounter.sol";
 
-contract BaseSingletonPaymasterTest is Test {
+import {DeployPermit2} from "permit2/test/utils/DeployPermit2.sol";
+
+contract BaseSingletonPaymasterTest is Test, DeployPermit2 {
     address payable beneficiary;
     address paymasterOwner;
     uint256 paymasterOwnerKey;
@@ -24,6 +26,7 @@ contract BaseSingletonPaymasterTest is Test {
     uint256 paymasterSignerKey;
     address user;
     uint256 userKey;
+    address permit2;
 
     uint256 constant INITIAL_DEPOSIT = 100 ether;
     BaseSingletonPaymaster paymaster;
@@ -35,6 +38,8 @@ contract BaseSingletonPaymasterTest is Test {
     TestCounter counter;
 
     function setUp() external {
+        permit2 = deployPermit2();
+
         token = new TestERC20(18);
         counter = new TestCounter();
 
