@@ -11,9 +11,8 @@ import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptograph
 import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
 
-import {MultiSigner} from "./base/MultiSigner.sol";
+import {Signer} from "./base/Signer.sol";
 import {StakeManager} from "./base/StakeManager.sol";
-import {NonceManager} from "./base/NonceManager.sol";
 
 import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
 
@@ -26,7 +25,7 @@ struct CallStruct {
 }
 
 /// @notice Request acts as a reciept
-/// @dev signed by one of the signers it allows to withdraw funds
+/// @dev signed by the signer it allows to withdraw funds
 /// @dev signed by the user it allows to claim funds from it's stake
 struct Request {
     /// @dev Asset that user wants to withdraw.
@@ -70,10 +69,9 @@ enum RequestExecutionType {
 /// @title MagicSpendPlusMinusHalf
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/MagicSpendPlusMinusHalf.sol)
 /// @notice Contract that allows users to pull funds from if they provide a valid signed request.
-/// @dev Inherits from MultiSigner.
 /// @dev Inherits from Ownable.
 /// @custom:security-contact security@pimlico.io
-contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeManager {
+contract MagicSpendPlusMinusHalf is Ownable, Signer, StakeManager {
     /// @notice Thrown when the request was submitted past its validUntil.
     error RequestExpired();
 
@@ -113,8 +111,8 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
 
     constructor(
         address _owner,
-        address[] memory _signers
-    ) Ownable(_owner) MultiSigner(_signers) {}
+        address _signer
+    ) Ownable(_owner) Signer(_signer) {}
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                     EXTERNAL FUNCTIONS                     */
@@ -148,7 +146,7 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner, NonceManager, StakeMan
             signature
         );
 
-        if (!signers[signer]) {
+        if (!_isSigner(signer)) {
             revert SignatureInvalid();
         }
 

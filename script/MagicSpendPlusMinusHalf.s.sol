@@ -18,12 +18,9 @@ contract MagicSpendPlusMinusHalfScript is Script {
 
         vm.startBroadcast(deployer);
 
-        address[] memory signers = new address[](1);
-        signers[0] = signer;
-
         MagicSpendPlusMinusHalf instance = new MagicSpendPlusMinusHalf{salt: salt}(
             owner,
-            signers
+            signer
         );
 
         instance.deposit{value: 0.01 ether}(address(0), 0.01 ether);

@@ -37,12 +37,11 @@ contract MagicSpendPlusMinusHalfTest is Test {
         (signer, signerKey) = makeAddrAndKey("signer");
         (alice, aliceKey) = makeAddrAndKey("alice");
 
-        magicSpendPlusMinusHalf = new MagicSpendPlusMinusHalf(OWNER, new address[](0));
+        magicSpendPlusMinusHalf = new MagicSpendPlusMinusHalf(OWNER, signer);
         token = new TestERC20(18);
         forceReverter = new ForceReverter();
 
         vm.prank(OWNER);
-        magicSpendPlusMinusHalf.addSigner(signer);
         token.sudoMint(signer, 100 ether);
         token.sudoMint(alice, 100 ether);
 
