@@ -1,20 +1,20 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test, console} from "forge-std/Test.sol";
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Ownable} from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Ownable } from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-import {EntryPoint} from "./utils/account-abstraction/v07/core/EntryPoint.sol";
-import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
-import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
-import {BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {BasePaymaster} from "../src/base/BasePaymaster.sol";
+import { EntryPoint } from "./utils/account-abstraction/v07/core/EntryPoint.sol";
+import { SimpleAccountFactory, SimpleAccount } from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
+import { SingletonPaymasterV7 } from "../src/SingletonPaymasterV7.sol";
+import { BaseSingletonPaymaster } from "../src/base/BaseSingletonPaymaster.sol";
+import { BasePaymaster } from "../src/base/BasePaymaster.sol";
 
-import {TestERC20} from "./utils/TestERC20.sol";
-import {TestCounter} from "./utils/TestCounter.sol";
+import { TestERC20 } from "./utils/TestERC20.sol";
+import { TestCounter } from "./utils/TestCounter.sol";
 
 contract BaseSingletonPaymasterTest is Test {
     address payable beneficiary;
@@ -47,7 +47,7 @@ contract BaseSingletonPaymasterTest is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
         paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
-        paymaster.deposit{value: INITIAL_DEPOSIT}();
+        paymaster.deposit{ value: INITIAL_DEPOSIT }();
 
         vm.prank(paymasterOwner);
         paymaster.addSigner(paymasterSigner);
@@ -106,7 +106,10 @@ contract BaseSingletonPaymasterTest is Test {
         uint256 _postOpGas,
         uint256 _actualUserOpFeePerGas,
         uint256 _exchangeRate
-    ) external view {
+    )
+        external
+        view
+    {
         uint256 postOpGas = bound(_postOpGas, 21_000, 250_000);
         uint256 actualUserOpFeePerGas = bound(_actualUserOpFeePerGas, 0.01 gwei, 5000 gwei);
         uint256 userOperationGasUsed = bound(_userOperationGasUsed, 21_000, 30_000_000);

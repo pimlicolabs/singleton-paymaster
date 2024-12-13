@@ -1,23 +1,23 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test, console} from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Ownable} from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
+import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Ownable } from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
 
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {IStakeManager} from "account-abstraction-v7/interfaces/IStakeManager.sol";
-import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { IStakeManager } from "account-abstraction-v7/interfaces/IStakeManager.sol";
+import { IEntryPoint } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-import {EntryPoint} from "./utils/account-abstraction/v07/core/EntryPoint.sol";
-import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
-import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
-import {BasePaymaster} from "../src/base/BasePaymaster.sol";
-import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
+import { EntryPoint } from "./utils/account-abstraction/v07/core/EntryPoint.sol";
+import { SimpleAccountFactory, SimpleAccount } from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
+import { SingletonPaymasterV7 } from "../src/SingletonPaymasterV7.sol";
+import { BasePaymaster } from "../src/base/BasePaymaster.sol";
+import { PostOpMode } from "../src/interfaces/PostOpMode.sol";
 
-import {TestERC20} from "./utils/TestERC20.sol";
-import {TestCounter} from "./utils/TestCounter.sol";
+import { TestERC20 } from "./utils/TestERC20.sol";
+import { TestCounter } from "./utils/TestCounter.sol";
 
 contract BasePaymasterTest is Test {
     uint256 immutable INITIAL_PAYMASTER_DEPOSIT = 100 ether;
@@ -44,7 +44,7 @@ contract BasePaymasterTest is Test {
         paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
 
         vm.deal(paymasterOwner, 100e18);
-        paymaster.deposit{value: INITIAL_PAYMASTER_DEPOSIT}();
+        paymaster.deposit{ value: INITIAL_PAYMASTER_DEPOSIT }();
     }
 
     function testConstructorSuccess() external {
@@ -84,11 +84,11 @@ contract BasePaymasterTest is Test {
 
         // only owner should be able to add stake.
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+        BasePaymaster(paymaster).addStake{ value: STAKE_AMOUNT }(UNSTAKE_DELAY);
 
         // should pass if caller is owner.
         vm.prank(paymasterOwner);
-        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+        BasePaymaster(paymaster).addStake{ value: STAKE_AMOUNT }(UNSTAKE_DELAY);
         IStakeManager.DepositInfo memory info = IStakeManager(entryPoint).getDepositInfo(address(paymaster));
         vm.assertTrue(info.staked, "Paymaster should be staked");
         vm.assertEq(info.stake, STAKE_AMOUNT, "Paymaster should have staked the correct amount");
@@ -96,7 +96,7 @@ contract BasePaymasterTest is Test {
 
         // should be able to add to existing stake.
         vm.prank(paymasterOwner);
-        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+        BasePaymaster(paymaster).addStake{ value: STAKE_AMOUNT }(UNSTAKE_DELAY);
         info = IStakeManager(entryPoint).getDepositInfo(address(paymaster));
         vm.assertTrue(info.staked, "Paymaster should be staked");
         vm.assertEq(info.stake, STAKE_AMOUNT * 2, "Paymaster should be able to add to existing stake");
@@ -109,7 +109,7 @@ contract BasePaymasterTest is Test {
 
         // add stake so that we can test unstaking.
         vm.prank(paymasterOwner);
-        BasePaymaster(paymaster).addStake{value: STAKE_AMOUNT}(UNSTAKE_DELAY);
+        BasePaymaster(paymaster).addStake{ value: STAKE_AMOUNT }(UNSTAKE_DELAY);
 
         // only owner should be able to unlockStatke + unstake.
         vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));

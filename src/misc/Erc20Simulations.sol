@@ -1,11 +1,11 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.23;
 
-import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
-import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
-import {IEntryPoint as IEntryPointV6} from "account-abstraction-v6/interfaces/IEntryPoint.sol";
+import { IERC20 } from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import { UserOperation } from "account-abstraction-v6/interfaces/UserOperation.sol";
+import { IEntryPoint as IEntryPointV6 } from "account-abstraction-v6/interfaces/IEntryPoint.sol";
 
-import {Test, console2} from "forge-std/Test.sol";
+import { Test, console2 } from "forge-std/Test.sol";
 
 // Contract that returns the treasury balance change
 contract Erc20PaymasterSimulationsV6 {
@@ -53,4 +53,4 @@ contract Erc20PaymasterSimulationsV6 {
     }
 }
 
-contract PimlicoErc20PaymasterSimulationsV7 {}
+contract PimlicoErc20PaymasterSimulationsV7 { }

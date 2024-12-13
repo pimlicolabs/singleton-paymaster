@@ -8,7 +8,8 @@ import "./SimpleAccount.sol";
 
 /**
  * A sample factory contract for SimpleAccount
- * A UserOperations "initCode" holds the address of the factory, and a method call (to createAccount, in this sample factory).
+ * A UserOperations "initCode" holds the address of the factory, and a method call (to createAccount, in this sample
+ * factory).
  * The factory's createAccount returns the target account address even if it is already installed.
  * This way, the entryPoint.getSenderAddress() can be called either before or after the account is created.
  */
@@ -23,7 +24,8 @@ contract SimpleAccountFactory {
      * create an account, and return its address.
      * returns the address even if the account is already deployed.
      * Note that during UserOperation execution, this method is called only if the account is not deployed.
-     * This method returns an existing account address so that entryPoint.getSenderAddress() would work even after account creation
+     * This method returns an existing account address so that entryPoint.getSenderAddress() would work even after
+     * account creation
      */
     function createAccount(address owner, uint256 salt) public returns (SimpleAccount ret) {
         address addr = getAddress(owner, salt);
@@ -33,7 +35,7 @@ contract SimpleAccountFactory {
         }
         ret = SimpleAccount(
             payable(
-                new ERC1967Proxy{salt: bytes32(salt)}(
+                new ERC1967Proxy{ salt: bytes32(salt) }(
                     address(accountImplementation), abi.encodeCall(SimpleAccount.initialize, (owner))
                 )
             )

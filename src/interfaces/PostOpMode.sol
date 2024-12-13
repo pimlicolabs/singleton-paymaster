@@ -6,6 +6,7 @@ enum PostOpMode {
     opSucceeded,
     // User op reverted. Still has to pay for gas.
     opReverted,
-    // Only used internally in the EntryPoint (cleanup after postOp reverts). Never calling paymaster with this value in v7.
+    // Only used internally in the EntryPoint (cleanup after postOp reverts). Never calling paymaster with this value in
+    // v7.
     postOpReverted
 }

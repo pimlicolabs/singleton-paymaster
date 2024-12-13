@@ -37,7 +37,7 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     }
 
     // solhint-disable-next-line no-empty-blocks
-    receive() external payable {}
+    receive() external payable { }
 
     constructor(IEntryPoint anEntryPoint) {
         _entryPoint = anEntryPoint;
@@ -102,7 +102,10 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     }
 
     /// implement template method of BaseAccount
-    function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
+    function _validateSignature(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash
+    )
         internal
         virtual
         override
@@ -116,7 +119,7 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
     }
 
     function _call(address target, uint256 value, bytes memory data) internal {
-        (bool success, bytes memory result) = target.call{value: value}(data);
+        (bool success, bytes memory result) = target.call{ value: value }(data);
         if (!success) {
             assembly {
                 revert(add(result, 32), mload(result))
@@ -135,7 +138,7 @@ contract SimpleAccount is BaseAccount, TokenCallbackHandler, UUPSUpgradeable, In
      * deposit more funds for this account in the entryPoint
      */
     function addDeposit() public payable {
-        entryPoint().depositTo{value: msg.value}(address(this));
+        entryPoint().depositTo{ value: msg.value }(address(this));
     }
 
     /**

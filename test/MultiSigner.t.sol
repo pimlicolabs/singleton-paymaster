@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test, console} from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 
-import {MultiSigner} from "../src/base/MultiSigner.sol";
-import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
+import { MultiSigner } from "../src/base/MultiSigner.sol";
+import { SingletonPaymasterV7 } from "../src/SingletonPaymasterV7.sol";
 
 contract MultiSignerTest is Test {
     MultiSigner paymaster;

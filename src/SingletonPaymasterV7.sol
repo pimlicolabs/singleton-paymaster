@@ -1,21 +1,21 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {_packValidationData} from "@account-abstraction-v7/core/Helpers.sol";
-import {UserOperationLib} from "@account-abstraction-v7/core/UserOperationLib.sol";
-import {UserOperationLib as UserOperationLibV07} from "@account-abstraction-v7/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { _packValidationData } from "@account-abstraction-v7/core/Helpers.sol";
+import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
+import { UserOperationLib as UserOperationLibV07 } from "@account-abstraction-v7/core/UserOperationLib.sol";
 
-import {ECDSA} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import {BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext} from "./base/BaseSingletonPaymaster.sol";
-import {IPaymasterV7} from "./interfaces/IPaymasterV7.sol";
-import {PostOpMode} from "./interfaces/PostOpMode.sol";
+import { BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext } from "./base/BaseSingletonPaymaster.sol";
+import { IPaymasterV7 } from "./interfaces/IPaymasterV7.sol";
+import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
 
@@ -24,7 +24,8 @@ using UserOperationLib for PackedUserOperation;
 /// @author Using Solady (https://github.com/vectorized/solady)
 /// @notice An ERC-4337 Paymaster contract which supports two modes, Verifying and ERC-20.
 /// In ERC-20 mode, the paymaster sponsors a UserOperation in exchange for tokens.
-/// In Verifying mode, the paymaster sponsors a UserOperation and deducts prepaid balance from the user's Pimlico balance.
+/// In Verifying mode, the paymaster sponsors a UserOperation and deducts prepaid balance from the user's Pimlico
+/// balance.
 /// @dev Inherits from BaseSingletonPaymaster.
 /// @custom:security-contact security@pimlico.io
 contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
@@ -39,16 +40,24 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*                        CONSTRUCTOR                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    constructor(address _entryPoint, address _owner, address[] memory _signers)
+    constructor(
+        address _entryPoint,
+        address _owner,
+        address[] memory _signers
+    )
         BaseSingletonPaymaster(_entryPoint, _owner, _signers)
-    {}
+    { }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @inheritdoc IPaymasterV7
-    function validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+    function validatePaymasterUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    )
         external
         override
         returns (bytes memory context, uint256 validationData)
@@ -58,7 +67,12 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     }
 
     /// @inheritdoc IPaymasterV7
-    function postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+    function postOp(
+        PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGasCost,
+        uint256 actualUserOpFeePerGas
+    )
         external
         override
     {
@@ -72,7 +86,11 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @param _userOpHash The userOperation hash.
      * @return (context, validationData) The context and validation data to return to the EntryPoint.
      */
-    function _validatePaymasterUserOp(PackedUserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
+    function _validatePaymasterUserOp(
+        PackedUserOperation calldata _userOp,
+        bytes32 _userOpHash,
+        uint256 /* maxCost */
+    )
         internal
         returns (bytes memory, uint256)
     {
@@ -108,7 +126,10 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         PackedUserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
-    ) internal returns (bytes memory, uint256) {
+    )
+        internal
+        returns (bytes memory, uint256)
+    {
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(VERIFYING_MODE, _userOp));
@@ -132,7 +153,11 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         PackedUserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
-    ) internal view returns (bytes memory, uint256) {
+    )
+        internal
+        view
+        returns (bytes memory, uint256)
+    {
         ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(ERC20_MODE, _userOp));
@@ -157,7 +182,9 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bytes calldata _context,
         uint256 _actualGasCost,
         uint256 _actualUserOpFeePerGas
-    ) internal {
+    )
+        internal
+    {
         (address sender, address token, uint256 exchangeRate, uint128 postOpGas, bytes32 userOpHash,,) =
             _parsePostOpContext(_context);
 
@@ -191,7 +218,10 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @param paymasterDataLength The paymasterData length.
      * @return bytes32 The hash that the signer should sign over.
      */
-    function _getHash(PackedUserOperation calldata _userOp, uint256 paymasterDataLength)
+    function _getHash(
+        PackedUserOperation calldata _userOp,
+        uint256 paymasterDataLength
+    )
         internal
         view
         returns (bytes32)

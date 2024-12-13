@@ -2,20 +2,20 @@
 pragma solidity ^0.8.0;
 
 /* solhint-disable reason-string */
-import {BasePaymaster} from "./BasePaymaster.sol";
-import {IPaymasterV6} from "../interfaces/IPaymasterV6.sol";
-import {PostOpMode} from "../interfaces/PostOpMode.sol";
-import {MultiSigner} from "./MultiSigner.sol";
+import { BasePaymaster } from "./BasePaymaster.sol";
+import { IPaymasterV6 } from "../interfaces/IPaymasterV6.sol";
+import { PostOpMode } from "../interfaces/PostOpMode.sol";
+import { MultiSigner } from "./MultiSigner.sol";
 
-import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import {PackedUserOperation} from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
+import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
-import {ECDSA} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
-import {SignatureCheckerLib} from "solady/utils/SignatureCheckerLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 /// @notice Holds all context needed during the EntryPoint's postOp call.
 struct ERC20PostOpContext {
@@ -80,7 +80,8 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     error ExchangeRateInvalid();
 
     /// @notice The payment failed due to the TransferFrom call in the PostOp reverting.
-    /// @dev We need to throw with params due to this bug in EntryPoint v0.6: https://github.com/eth-infinitism/account-abstraction/pull/293
+    /// @dev We need to throw with params due to this bug in EntryPoint v0.6:
+    /// https://github.com/eth-infinitism/account-abstraction/pull/293
     error PostOpTransferFromFailed(string msg);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -137,7 +138,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @param _entryPoint The entryPoint address.
      * @param _owner The initial contract owner.
      */
-    constructor(address _entryPoint, address _owner, address[] memory _signers)
+    constructor(
+        address _entryPoint,
+        address _owner,
+        address[] memory _signers
+    )
         BasePaymaster(_entryPoint, _owner)
         MultiSigner(_signers)
     {
@@ -158,14 +163,18 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /**
-     * @notice Parses the userOperation's paymasterAndData field and returns the paymaster mode and encoded paymaster configuration bytes.
+     * @notice Parses the userOperation's paymasterAndData field and returns the paymaster mode and encoded paymaster
+     * configuration bytes.
      * @dev _paymasterDataOffset should have value 20 for V6 and 52 for V7.
      * @param _paymasterAndData The paymasterAndData to parse.
      * @param _paymasterDataOffset The paymasterData offset in paymasterAndData.
      * @return mode The paymaster mode.
      * @return paymasterConfig The paymaster config bytes.
      */
-    function _parsePaymasterAndData(bytes calldata _paymasterAndData, uint256 _paymasterDataOffset)
+    function _parsePaymasterAndData(
+        bytes calldata _paymasterAndData,
+        uint256 _paymasterDataOffset
+    )
         internal
         pure
         returns (uint8, bytes calldata)
@@ -227,9 +236,12 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @return validUntil The timestamp until which the sponsorship is valid.
      * @return validAfter The timestamp after which the sponsorship is valid.
      * @return signature The signature over the hashed sponsorship fields.
-     * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65 bytes.
+     * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65
+     * bytes.
      */
-    function _parseVerifyingConfig(bytes calldata _paymasterConfig)
+    function _parseVerifyingConfig(
+        bytes calldata _paymasterConfig
+    )
         internal
         pure
         returns (uint48, uint48, bytes calldata)
@@ -263,7 +275,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 _exchangeRate,
         uint128 _postOpGas,
         bytes32 _userOpHash
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(
             ERC20PostOpContext({
                 sender: _userOp.sender,
@@ -291,7 +307,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 _exchangeRate,
         uint128 _postOpGas,
         bytes32 _userOpHash
-    ) internal pure returns (bytes memory) {
+    )
+        internal
+        pure
+        returns (bytes memory)
+    {
         return abi.encode(
             ERC20PostOpContext({
                 sender: _userOp.sender,
@@ -301,11 +321,13 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
                 userOpHash: _userOpHash,
                 maxFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 maxPriorityFeePerGas: uint256(0) // for v0.7 userOperations, the gasPrice is passed in the postOp.
-            })
+             })
         );
     }
 
-    function _parsePostOpContext(bytes calldata _context)
+    function _parsePostOpContext(
+        bytes calldata _context
+    )
         internal
         pure
         returns (address, address, uint256, uint128, bytes32, uint256, uint256)
@@ -336,7 +358,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 _postOpGas,
         uint256 _actualUserOpFeePerGas,
         uint256 _exchangeRate
-    ) public pure returns (uint256) {
+    )
+        public
+        pure
+        returns (uint256)
+    {
         return ((_actualGasCost + (_postOpGas * _actualUserOpFeePerGas)) * _exchangeRate) / 1e18;
     }
 }

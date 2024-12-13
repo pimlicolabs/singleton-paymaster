@@ -1,22 +1,22 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test, console} from "forge-std/Test.sol";
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {IERC20} from "openzeppelin-contracts-v5.0.2/contracts/token/ERC20/IERC20.sol";
+import { Test, console } from "forge-std/Test.sol";
+import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { IERC20 } from "openzeppelin-contracts-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
-import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
-import {PackedUserOperation} from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
-import {ERC20PostOpContext, BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {SingletonPaymasterV7} from "../src/SingletonPaymasterV7.sol";
-import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
+import { ERC20PostOpContext, BaseSingletonPaymaster } from "../src/base/BaseSingletonPaymaster.sol";
+import { SingletonPaymasterV7 } from "../src/SingletonPaymasterV7.sol";
+import { PostOpMode } from "../src/interfaces/PostOpMode.sol";
 
-import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
-import {EntryPoint} from "./utils/account-abstraction/v07/core/EntryPoint.sol";
-import {TestERC20} from "./utils/TestERC20.sol";
-import {TestCounter} from "./utils/TestCounter.sol";
+import { SimpleAccountFactory, SimpleAccount } from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
+import { EntryPoint } from "./utils/account-abstraction/v07/core/EntryPoint.sol";
+import { TestERC20 } from "./utils/TestERC20.sol";
+import { TestCounter } from "./utils/TestCounter.sol";
 
 struct SignatureData {
     uint8 v;
@@ -70,7 +70,7 @@ contract SingletonPaymasterV7Test is Test {
         account = accountFactory.createAccount(user, 0);
 
         paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
-        paymaster.deposit{value: 100e18}();
+        paymaster.deposit{ value: 100e18 }();
 
         vm.prank(paymasterOwner);
         paymaster.addSigner(paymasterSigner);
@@ -151,7 +151,7 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), _invalidMode);
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), _invalidMode);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -178,7 +178,8 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000), mode, _randomBytes);
+        op.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), mode, _randomBytes);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -200,8 +201,8 @@ contract SingletonPaymasterV7Test is Test {
         if (mode == VERIFYING_MODE) {
             op.paymasterAndData = abi.encodePacked(
                 address(paymaster), // paymaster
-                uint128(100000), // paymaster verification gas
-                uint128(50000), // paymaster postop gas
+                uint128(100_000), // paymaster verification gas
+                uint128(50_000), // paymaster postop gas
                 mode, // mode
                 uint48(0), // validUntil
                 uint48(0), // validAfter
@@ -212,8 +213,8 @@ contract SingletonPaymasterV7Test is Test {
         if (mode == ERC20_MODE) {
             op.paymasterAndData = abi.encodePacked(
                 address(paymaster), // paymaster
-                uint128(100000), // paymaster verification gas
-                uint128(50000), // paymaster postop gas
+                uint128(100_000), // paymaster verification gas
+                uint128(50_000), // paymaster postop gas
                 mode, // mode
                 uint48(0), // validUntil
                 int48(0), // validAfter
@@ -243,8 +244,8 @@ contract SingletonPaymasterV7Test is Test {
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
-            uint128(100000),
-            uint128(50000),
+            uint128(100_000),
+            uint128(50_000),
             ERC20_MODE,
             uint48(0),
             int48(0),
@@ -273,8 +274,8 @@ contract SingletonPaymasterV7Test is Test {
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
-            uint128(100000),
-            uint128(50000),
+            uint128(100_000),
+            uint128(50_000),
             ERC20_MODE,
             uint48(0),
             int48(0),
@@ -301,7 +302,7 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100000), uint128(50000));
+        op.paymasterAndData = abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000));
 
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
@@ -340,7 +341,9 @@ contract SingletonPaymasterV7Test is Test {
         uint128 _postOpGas,
         uint256 _userOperationGasUsed,
         uint256 _actualUserOpFeePerGas
-    ) external {
+    )
+        external
+    {
         token.sudoMint(address(account), 1e50);
         token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
 
@@ -392,7 +395,9 @@ contract SingletonPaymasterV7Test is Test {
         uint48 _validAfter,
         uint128 _paymasterPostOpGas,
         uint128 _paymasterVerificationGas
-    ) external {
+    )
+        external
+    {
         PackedUserOperation memory op = fillUserOp();
         PaymasterData memory data =
             PaymasterData(address(paymaster), _paymasterVerificationGas, _paymasterPostOpGas, _validUntil, _validAfter);
@@ -408,7 +413,8 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     // context and validation data should be properly encoded in Verifying mode.
-    // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run simulations)
+    // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run
+    // simulations)
     function test_verifyingValidatePaymasterUserOp(uint48 _validUntil, uint48 _validAfter) external {
         PackedUserOperation memory op = fillUserOp();
         PaymasterData memory data = PaymasterData(address(paymaster), 50_000, 100_000, _validUntil, _validAfter);
@@ -425,7 +431,9 @@ contract SingletonPaymasterV7Test is Test {
         PaymasterData memory data,
         uint256 signerKey,
         uint160 expectedSignature
-    ) internal {
+    )
+        internal
+    {
         op.paymasterAndData = getVerifyingModeData(data, op, signerKey);
         op.signature = signUserOp(op, userKey);
         bytes32 opHash = getOpHash(op);
@@ -440,14 +448,17 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     // context and validation data should be properly populated and encoded in ERC-20 mode
-    // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run simulations)
+    // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run
+    // simulations)
     function test_ERC20ValidatePaymasterUserOp(
         uint48 _validUntil,
         uint48 _validAfter,
         address _token,
         uint128 _postOpGas,
         uint256 _exchangeRate
-    ) external {
+    )
+        external
+    {
         vm.assume(_exchangeRate > 0);
         vm.assume(_token != address(0));
 
@@ -469,7 +480,9 @@ contract SingletonPaymasterV7Test is Test {
         uint256 exchangeRate,
         uint160 expectedSignature,
         uint256 signerKey
-    ) internal {
+    )
+        internal
+    {
         op.paymasterAndData = getERC20ModeData(data, tokenAddress, postOpGas, exchangeRate, op, signerKey);
         op.signature = signUserOp(op, userKey);
         bytes32 opHash = getOpHash(op);
@@ -590,7 +603,10 @@ contract SingletonPaymasterV7Test is Test {
         assertEq(uint160(validationData), isSignatureValid ? 0 : 1);
     }
 
-    function getSignedPaymasterData(uint8 mode, PackedUserOperation memory userOp)
+    function getSignedPaymasterData(
+        uint8 mode,
+        PackedUserOperation memory userOp
+    )
         private
         view
         returns (bytes memory)
@@ -612,7 +628,11 @@ contract SingletonPaymasterV7Test is Test {
         revert("unexpected mode");
     }
 
-    function getVerifyingModeData(PaymasterData memory data, PackedUserOperation memory userOp, uint256 signerKey)
+    function getVerifyingModeData(
+        PaymasterData memory data,
+        PackedUserOperation memory userOp,
+        uint256 signerKey
+    )
         private
         view
         returns (bytes memory)
@@ -646,7 +666,11 @@ contract SingletonPaymasterV7Test is Test {
         uint256 exchangeRate,
         PackedUserOperation memory userOp,
         uint256 signingKey
-    ) private view returns (bytes memory) {
+    )
+        private
+        view
+        returns (bytes memory)
+    {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
@@ -687,9 +711,9 @@ contract SingletonPaymasterV7Test is Test {
         op.callData = abi.encodeWithSelector(
             SimpleAccount.execute.selector, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector)
         );
-        op.accountGasLimits = bytes32(abi.encodePacked(bytes16(uint128(80000)), bytes16(uint128(50000))));
-        op.preVerificationGas = 50000;
-        op.gasFees = bytes32(abi.encodePacked(bytes16(uint128(100)), bytes16(uint128(1000000000))));
+        op.accountGasLimits = bytes32(abi.encodePacked(bytes16(uint128(80_000)), bytes16(uint128(50_000))));
+        op.preVerificationGas = 50_000;
+        op.gasFees = bytes32(abi.encodePacked(bytes16(uint128(100)), bytes16(uint128(1_000_000_000))));
         op.signature = signUserOp(op, userKey);
         return op;
     }

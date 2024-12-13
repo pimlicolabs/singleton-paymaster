@@ -1,24 +1,24 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test, console2} from "forge-std/Test.sol";
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {ERC20} from "openzeppelin-contracts-v5.0.2/contracts/token/ERC20/ERC20.sol";
+import { Test, console2 } from "forge-std/Test.sol";
+import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { ERC20 } from "openzeppelin-contracts-v5.0.2/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin-v4.8.3/contracts/utils/cryptography/ECDSA.sol";
 
-import {UserOperation} from "account-abstraction-v6/interfaces/UserOperation.sol";
-import {IEntryPoint} from "account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { UserOperation } from "account-abstraction-v6/interfaces/UserOperation.sol";
+import { IEntryPoint } from "account-abstraction-v7/interfaces/IEntryPoint.sol";
 
-import {PostOpMode} from "../src/interfaces/PostOpMode.sol";
-import {ERC20PostOpContext, BaseSingletonPaymaster} from "../src/base/BaseSingletonPaymaster.sol";
-import {SingletonPaymasterV6} from "../src/SingletonPaymasterV6.sol";
+import { PostOpMode } from "../src/interfaces/PostOpMode.sol";
+import { ERC20PostOpContext, BaseSingletonPaymaster } from "../src/base/BaseSingletonPaymaster.sol";
+import { SingletonPaymasterV6 } from "../src/SingletonPaymasterV6.sol";
 
-import {EntryPoint} from "./utils/account-abstraction/v06/core/EntryPoint.sol";
-import {TestERC20} from "./utils/TestERC20.sol";
-import {TestCounter} from "./utils/TestCounter.sol";
-import {SimpleAccountFactory, SimpleAccount} from "./utils/account-abstraction/v06/samples/SimpleAccountFactory.sol";
+import { EntryPoint } from "./utils/account-abstraction/v06/core/EntryPoint.sol";
+import { TestERC20 } from "./utils/TestERC20.sol";
+import { TestCounter } from "./utils/TestCounter.sol";
+import { SimpleAccountFactory, SimpleAccount } from "./utils/account-abstraction/v06/samples/SimpleAccountFactory.sol";
 
-import {Erc20PaymasterSimulationsV6} from "../src/misc/Erc20Simulations.sol";
+import { Erc20PaymasterSimulationsV6 } from "../src/misc/Erc20Simulations.sol";
 
 using ECDSA for bytes32;
 
@@ -71,7 +71,7 @@ contract SingletonPaymasterV6Test is Test {
         account = accountFactory.createAccount(user, 0);
 
         paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, new address[](0));
-        paymaster.deposit{value: 100e18}();
+        paymaster.deposit{ value: 100e18 }();
 
         vm.prank(paymasterOwner);
         paymaster.addSigner(paymasterSigner);
@@ -91,7 +91,8 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function getSignedPaymasterData(uint8 mode, UserOperation memory userOp) private view returns (bytes memory) {
-        PaymasterData memory data = PaymasterData({paymasterAddress: address(paymaster), validUntil: 0, validAfter: 0});
+        PaymasterData memory data =
+            PaymasterData({ paymasterAddress: address(paymaster), validUntil: 0, validAfter: 0 });
 
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp, paymasterSignerKey);
@@ -102,7 +103,11 @@ contract SingletonPaymasterV6Test is Test {
         revert("UNEXPECTED MODE");
     }
 
-    function getVerifyingModeData(PaymasterData memory data, UserOperation memory userOp, uint256 signerKey)
+    function getVerifyingModeData(
+        PaymasterData memory data,
+        UserOperation memory userOp,
+        uint256 signerKey
+    )
         private
         view
         returns (bytes memory)
@@ -122,7 +127,11 @@ contract SingletonPaymasterV6Test is Test {
         uint256 exchangeRate,
         UserOperation memory userOp,
         uint256 signerKey
-    ) private view returns (bytes memory) {
+    )
+        private
+        view
+        returns (bytes memory)
+    {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress, ERC20_MODE, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate
         );
@@ -146,9 +155,9 @@ contract SingletonPaymasterV6Test is Test {
         op.callData = abi.encodeWithSelector(
             SimpleAccount.execute.selector, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector)
         );
-        op.callGasLimit = 50000;
-        op.verificationGasLimit = 180000;
-        op.preVerificationGas = 50000;
+        op.callGasLimit = 50_000;
+        op.verificationGasLimit = 180_000;
+        op.preVerificationGas = 50_000;
         op.maxFeePerGas = 50;
         op.maxPriorityFeePerGas = 15;
         op.signature = signUserOp(op, userKey);

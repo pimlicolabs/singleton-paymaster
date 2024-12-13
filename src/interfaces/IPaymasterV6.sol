@@ -5,7 +5,7 @@ import {
     UserOperationLib as UserOperationLibV06,
     UserOperation
 } from "@account-abstraction-v6/interfaces/UserOperation.sol";
-import {PostOpMode} from "./PostOpMode.sol";
+import { PostOpMode } from "./PostOpMode.sol";
 
 /**
  * the interface exposed by a paymaster contract, who agrees to pay the gas for user's operations.
@@ -23,14 +23,19 @@ interface IPaymasterV6 {
      * @param maxCost the maximum cost of this transaction (based on maximum gas and gas price from userOp)
      * @return context value to send to a postOp
      *      zero length to signify postOp is not required.
-     * @return validationData signature and time-range of this operation, encoded the same as the return value of validateUserOperation
+     * @return validationData signature and time-range of this operation, encoded the same as the return value of
+     * validateUserOperation
      *      <20-byte> sigAuthorizer - 0 for valid signature, 1 to mark signature failure,
      *         otherwise, an address of an "authorizer" contract.
      *      <6-byte> validUntil - last timestamp this operation is valid. 0 for "indefinite"
      *      <6-byte> validAfter - first timestamp this operation is valid
      *      Note that the validation code cannot use block.timestamp (or block.number) directly.
      */
-    function validatePaymasterUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+    function validatePaymasterUserOp(
+        UserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    )
         external
         returns (bytes memory context, uint256 validationData);
 

@@ -1,19 +1,19 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import {UserOperation} from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import {IEntryPoint} from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
-import {_packValidationData} from "@account-abstraction-v6/core/Helpers.sol";
+import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
+import { IEntryPoint } from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
+import { _packValidationData } from "@account-abstraction-v6/core/Helpers.sol";
 
-import {ECDSA} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
-import {MessageHashUtils} from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {Math} from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
+import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 
-import {BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext} from "./base/BaseSingletonPaymaster.sol";
-import {IPaymasterV6} from "./interfaces/IPaymasterV6.sol";
-import {PostOpMode} from "./interfaces/PostOpMode.sol";
+import { BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext } from "./base/BaseSingletonPaymaster.sol";
+import { IPaymasterV6 } from "./interfaces/IPaymasterV6.sol";
+import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 /// @title SingletonPaymasterV6
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV6.sol)
@@ -34,16 +34,24 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     /*                        CONSTRUCTOR                         */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    constructor(address _entryPoint, address _owner, address[] memory _signers)
+    constructor(
+        address _entryPoint,
+        address _owner,
+        address[] memory _signers
+    )
         BaseSingletonPaymaster(_entryPoint, _owner, _signers)
-    {}
+    { }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*        ENTRYPOINT V0.6 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @inheritdoc IPaymasterV6
-    function validatePaymasterUserOp(UserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+    function validatePaymasterUserOp(
+        UserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    )
         external
         override
         returns (bytes memory context, uint256 validationData)
@@ -64,7 +72,11 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @param _userOpHash The userOperation hash.
      * @return (context, validationData) The context and validation data to return to the EntryPoint.
      */
-    function _validatePaymasterUserOp(UserOperation calldata _userOp, bytes32 _userOpHash, uint256 /* maxCost */ )
+    function _validatePaymasterUserOp(
+        UserOperation calldata _userOp,
+        bytes32 _userOpHash,
+        uint256 /* maxCost */
+    )
         internal
         returns (bytes memory, uint256)
     {
@@ -100,7 +112,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         UserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
-    ) internal returns (bytes memory, uint256) {
+    )
+        internal
+        returns (bytes memory, uint256)
+    {
         (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(VERIFYING_MODE, _userOp));
@@ -120,7 +135,11 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @param _userOpHash The userOperation hash.
      * @return (context, validationData) The validation data to return to the EntryPoint.
      */
-    function _validateERC20Mode(UserOperation calldata _userOp, bytes calldata _paymasterConfig, bytes32 _userOpHash)
+    function _validateERC20Mode(
+        UserOperation calldata _userOp,
+        bytes calldata _paymasterConfig,
+        bytes32 _userOpHash
+    )
         internal
         view
         returns (bytes memory, uint256)

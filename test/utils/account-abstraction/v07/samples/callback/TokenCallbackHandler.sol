@@ -16,7 +16,13 @@ abstract contract TokenCallbackHandler is IERC721Receiver, IERC1155Receiver {
         return IERC721Receiver.onERC721Received.selector;
     }
 
-    function onERC1155Received(address, address, uint256, uint256, bytes calldata)
+    function onERC1155Received(
+        address,
+        address,
+        uint256,
+        uint256,
+        bytes calldata
+    )
         external
         pure
         override
@@ -25,7 +31,13 @@ abstract contract TokenCallbackHandler is IERC721Receiver, IERC1155Receiver {
         return IERC1155Receiver.onERC1155Received.selector;
     }
 
-    function onERC1155BatchReceived(address, address, uint256[] calldata, uint256[] calldata, bytes calldata)
+    function onERC1155BatchReceived(
+        address,
+        address,
+        uint256[] calldata,
+        uint256[] calldata,
+        bytes calldata
+    )
         external
         pure
         override

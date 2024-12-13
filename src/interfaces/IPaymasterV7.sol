@@ -5,7 +5,7 @@ import {
     UserOperationLib as UserOperationLibV07,
     PackedUserOperation
 } from "@account-abstraction-v7/core/UserOperationLib.sol";
-import {PostOpMode} from "./PostOpMode.sol";
+import { PostOpMode } from "./PostOpMode.sol";
 
 /**
  * The interface exposed by a paymaster contract, who agrees to pay the gas for user's operations.
@@ -16,7 +16,8 @@ interface IPaymasterV7 {
      * Payment validation: check if paymaster agrees to pay.
      * Must verify sender is the entryPoint.
      * Revert to reject this request.
-     * Note that bundlers will reject this method if it changes the state, unless the paymaster is trusted (whitelisted).
+     * Note that bundlers will reject this method if it changes the state, unless the paymaster is trusted
+     * (whitelisted).
      * The paymaster pre-pays using its deposit, and receive back a refund after the postOp method returns.
      * @param userOp          - The user operation.
      * @param userOpHash      - Hash of the user's request data.
@@ -30,7 +31,11 @@ interface IPaymasterV7 {
      *                          <6-byte> validAfter - first timestamp this operation is valid
      *                          Note that the validation code cannot use block.timestamp (or block.number) directly.
      */
-    function validatePaymasterUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 maxCost)
+    function validatePaymasterUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 maxCost
+    )
         external
         returns (bytes memory context, uint256 validationData);
 
@@ -47,6 +52,11 @@ interface IPaymasterV7 {
      *                        and maxPriorityFee (and basefee)
      *                        It is not the same as tx.gasprice, which is what the bundler pays.
      */
-    function postOp(PostOpMode mode, bytes calldata context, uint256 actualGasCost, uint256 actualUserOpFeePerGas)
+    function postOp(
+        PostOpMode mode,
+        bytes calldata context,
+        uint256 actualGasCost,
+        uint256 actualUserOpFeePerGas
+    )
         external;
 }

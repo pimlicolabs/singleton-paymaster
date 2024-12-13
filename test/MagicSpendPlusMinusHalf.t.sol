@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.0;
 
-import {Test, console} from "forge-std/Test.sol";
+import { Test, console } from "forge-std/Test.sol";
 
-import {MagicSpendPlusMinusHalf, WithdrawRequest, CallStruct} from "../src/MagicSpendPlusMinusHalf.sol";
-import {TestERC20} from "./utils/TestERC20.sol";
-import {ForceReverter} from "./utils/ForceReverter.sol";
+import { MagicSpendPlusMinusHalf, WithdrawRequest, CallStruct } from "../src/MagicSpendPlusMinusHalf.sol";
+import { TestERC20 } from "./utils/TestERC20.sol";
+import { ForceReverter } from "./utils/ForceReverter.sol";
 
-import {MessageHashUtils} from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import {SafeTransferLib} from "solady/utils/SafeTransferLib.sol";
+import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 contract MagicSpendPlusMinusHalfTest is Test {
     address immutable OWNER = makeAddr("owner");
@@ -280,7 +280,10 @@ contract MagicSpendPlusMinusHalfTest is Test {
 
     // = = = Helpers = = =
 
-    function signWithdrawRequest(WithdrawRequest memory withdrawRequest, uint256 signingKey)
+    function signWithdrawRequest(
+        WithdrawRequest memory withdrawRequest,
+        uint256 signingKey
+    )
         internal
         view
         returns (bytes memory signature)

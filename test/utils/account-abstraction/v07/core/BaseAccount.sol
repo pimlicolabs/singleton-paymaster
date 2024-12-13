@@ -32,7 +32,11 @@ abstract contract BaseAccount is IAccount {
     function entryPoint() public view virtual returns (IEntryPoint);
 
     /// @inheritdoc IAccount
-    function validateUserOp(PackedUserOperation calldata userOp, bytes32 userOpHash, uint256 missingAccountFunds)
+    function validateUserOp(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash,
+        uint256 missingAccountFunds
+    )
         external
         virtual
         override
@@ -65,7 +69,10 @@ abstract contract BaseAccount is IAccount {
      *                          SIG_VALIDATION_FAILED value (1) for signature failure.
      *                          Note that the validation code cannot use block.timestamp (or block.number) directly.
      */
-    function _validateSignature(PackedUserOperation calldata userOp, bytes32 userOpHash)
+    function _validateSignature(
+        PackedUserOperation calldata userOp,
+        bytes32 userOpHash
+    )
         internal
         virtual
         returns (uint256 validationData);
@@ -86,7 +93,7 @@ abstract contract BaseAccount is IAccount {
      *
      * solhint-disable-next-line no-empty-blocks
      */
-    function _validateNonce(uint256 nonce) internal view virtual {}
+    function _validateNonce(uint256 nonce) internal view virtual { }
 
     /**
      * Sends to the entrypoint (msg.sender) the missing funds for this transaction.
@@ -99,7 +106,7 @@ abstract contract BaseAccount is IAccount {
      */
     function _payPrefund(uint256 missingAccountFunds) internal virtual {
         if (missingAccountFunds != 0) {
-            (bool success,) = payable(msg.sender).call{value: missingAccountFunds, gas: type(uint256).max}("");
+            (bool success,) = payable(msg.sender).call{ value: missingAccountFunds, gas: type(uint256).max }("");
             (success);
             //ignore failure (its EntryPoint's job to verify, not account.)
         }

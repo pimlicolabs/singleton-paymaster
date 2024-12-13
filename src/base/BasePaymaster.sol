@@ -3,9 +3,9 @@ pragma solidity ^0.8.0;
 
 /* solhint-disable reason-string */
 
-import {Ownable} from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
-import {IERC165} from "@openzeppelin-v5.0.2/contracts/utils/introspection/IERC165.sol";
-import {IEntryPoint} from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import { IERC165 } from "@openzeppelin-v5.0.2/contracts/utils/introspection/IERC165.sol";
+import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**
  * Helper class for creating a paymaster.
@@ -23,7 +23,7 @@ abstract contract BasePaymaster is Ownable {
      * Add a deposit for this paymaster, used for paying for transaction fees.
      */
     function deposit() public payable {
-        entryPoint.depositTo{value: msg.value}(address(this));
+        entryPoint.depositTo{ value: msg.value }(address(this));
     }
 
     /**
@@ -41,7 +41,7 @@ abstract contract BasePaymaster is Ownable {
      * @param unstakeDelaySec - The unstake delay for this paymaster. Can only be increased.
      */
     function addStake(uint32 unstakeDelaySec) external payable onlyOwner {
-        entryPoint.addStake{value: msg.value}(unstakeDelaySec);
+        entryPoint.addStake{ value: msg.value }(unstakeDelaySec);
     }
 
     /**
