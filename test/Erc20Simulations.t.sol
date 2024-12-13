@@ -97,7 +97,9 @@ contract SingletonPaymasterV6Test is Test {
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp, paymasterSignerKey);
         } else if (mode == ERC20_MODE) {
-            return getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, userOp, paymasterSignerKey);
+            return getERC20ModeData(
+                data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), userOp, paymasterSignerKey
+            );
         }
 
         revert("UNEXPECTED MODE");
@@ -125,6 +127,7 @@ contract SingletonPaymasterV6Test is Test {
         address erc20,
         uint128 postOpGas,
         uint256 exchangeRate,
+        uint128 paymasterValidationGasLimit,
         UserOperation memory userOp,
         uint256 signerKey
     )
@@ -133,13 +136,28 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         userOp.paymasterAndData = abi.encodePacked(
-            data.paymasterAddress, ERC20_MODE, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate
+            data.paymasterAddress,
+            ERC20_MODE,
+            data.validUntil,
+            data.validAfter,
+            erc20,
+            postOpGas,
+            exchangeRate,
+            paymasterValidationGasLimit
         );
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
         return abi.encodePacked(
-            data.paymasterAddress, ERC20_MODE, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate, sig
+            data.paymasterAddress,
+            ERC20_MODE,
+            data.validUntil,
+            data.validAfter,
+            erc20,
+            postOpGas,
+            exchangeRate,
+            paymasterValidationGasLimit,
+            sig
         );
     }
 

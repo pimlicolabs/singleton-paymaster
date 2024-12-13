@@ -35,6 +35,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
     uint256 private immutable PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
     uint256 private immutable PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLibV07.PAYMASTER_VALIDATION_GAS_OFFSET;
+    uint256 private constant PENALTY_PERCENT = 10;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
@@ -166,8 +167,35 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
 
-        bytes memory context = _createPostOpContext(_userOp, cfg.token, cfg.exchangeRate, cfg.postOpGas, _userOpHash);
+        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg);
         return (context, validationData);
+    }
+
+    function _expectedPenaltyGas(
+        uint256 _actualGasCost,
+        uint256 _actualUserOpFeePerGas,
+        uint128 _postOpGas,
+        uint256 _preOpGasApproximation,
+        uint256 _executionGasLimit
+    )
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 actualGas = _actualGasCost / _actualUserOpFeePerGas;
+
+        uint256 executionGasUsed;
+        if (actualGas + _postOpGas > _preOpGasApproximation) {
+            executionGasUsed = actualGas + _postOpGas - _preOpGasApproximation;
+        }
+
+        uint256 expectedPenaltyGas;
+        if (_executionGasLimit > executionGasUsed) {
+            uint256 unusedGas = _executionGasLimit - executionGasUsed;
+            expectedPenaltyGas = (unusedGas * PENALTY_PERCENT) / 100;
+        }
+
+        return actualGas + expectedPenaltyGas;
     }
 
     /**
@@ -185,10 +213,23 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     )
         internal
     {
-        (address sender, address token, uint256 exchangeRate, uint128 postOpGas, bytes32 userOpHash,,) =
-            _parsePostOpContext(_context);
+        (
+            address sender,
+            address token,
+            uint256 exchangeRate,
+            uint128 postOpGas,
+            bytes32 userOpHash,
+            ,
+            ,
+            uint256 preOpGasApproximation,
+            uint256 executionGasLimit
+        ) = _parsePostOpContext(_context);
 
-        uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
+        uint256 actualGasWithPenalty = _expectedPenaltyGas(
+            _actualGasCost, _actualUserOpFeePerGas, postOpGas, preOpGasApproximation, executionGasLimit
+        );
+
+        uint256 costInToken = getCostInToken(actualGasWithPenalty, postOpGas, _actualUserOpFeePerGas, exchangeRate);
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
         emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);

@@ -152,7 +152,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
 
-        bytes memory context = _createPostOpContext(_userOp, cfg.token, cfg.exchangeRate, cfg.postOpGas, _userOpHash);
+        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg);
         return (context, validationData);
     }
 
@@ -171,7 +171,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             uint128 postOpGas,
             bytes32 userOpHash,
             uint256 maxFeePerGas,
-            uint256 maxPriorityFeePerGas
+            uint256 maxPriorityFeePerGas,
+            ,
         ) = _parsePostOpContext(_context);
 
         uint256 actualUserOpFeePerGas;
@@ -182,7 +183,9 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
         }
 
-        uint256 costInToken = getCostInToken(_actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
+        uint256 actualGas = _actualGasCost / actualUserOpFeePerGas;
+
+        uint256 costInToken = getCostInToken(actualGas, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
         if (_mode != PostOpMode.postOpReverted) {
             // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
