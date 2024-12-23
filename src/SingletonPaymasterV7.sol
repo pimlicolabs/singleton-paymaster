@@ -182,20 +182,18 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         pure
         returns (uint256)
     {
-        uint256 actualGas = _actualGasCost / _actualUserOpFeePerGas;
+        uint256 actualGas = _actualGasCost / _actualUserOpFeePerGas + _postOpGas;
 
-        uint256 executionGasUsed;
-        if (actualGas + _postOpGas > _preOpGasApproximation) {
-            executionGasUsed = actualGas + _postOpGas - _preOpGasApproximation;
-        }
+        uint256 executionGasUsed = actualGas - _preOpGasApproximation;
 
         uint256 expectedPenaltyGas;
         if (_executionGasLimit > executionGasUsed) {
             uint256 unusedGas = _executionGasLimit - executionGasUsed;
             expectedPenaltyGas = (unusedGas * PENALTY_PERCENT) / 100;
+            actualGas += expectedPenaltyGas;
         }
 
-        return actualGas + expectedPenaltyGas;
+        return actualGas;
     }
 
     /**
