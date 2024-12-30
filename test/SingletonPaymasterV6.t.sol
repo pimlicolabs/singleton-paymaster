@@ -126,7 +126,7 @@ contract SingletonPaymasterV6Test is Test {
         // sign with random private key to force false signature
         PaymasterData memory data = PaymasterData(address(paymaster), 0, 0);
         op.paymasterAndData =
-            getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, op, unauthorizedSignerKey);
+            getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), op, unauthorizedSignerKey);
         op.signature = signUserOp(op, userKey);
 
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
@@ -265,6 +265,7 @@ contract SingletonPaymasterV6Test is Test {
             address(0), // **will throw here, token address cannot be zero.**
             uint128(1), // postOpGas
             uint256(1), // exchangeRate
+            uint128(0), // paymasterValidationGasLimit
             "DummySignature"
         );
 
@@ -414,15 +415,18 @@ contract SingletonPaymasterV6Test is Test {
                 postOpGas: postOpGas,
                 userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
                 maxFeePerGas: maxFeePerGas,
-                maxPriorityFeePerGas: maxPriorityFeePerGas
+                maxPriorityFeePerGas: maxPriorityFeePerGas,
+                executionGasLimit: uint256(0),
+                preOpGasApproximation: uint256(0)
             })
         );
 
         vm.prank(address(entryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost);
         uint256 expectedCostInToken =
-            paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
+            paymaster.getCostInToken(userOperationGasUsed, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
+        // TODO: Check when preOpGasApproximation is not 0
         vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
     }
 
@@ -437,7 +441,7 @@ contract SingletonPaymasterV6Test is Test {
     )
         internal
     {
-        op.paymasterAndData = getERC20ModeData(data, tokenAddress, postOpGas, exchangeRate, op, signerKey);
+        op.paymasterAndData = getERC20ModeData(data, tokenAddress, postOpGas, exchangeRate, uint128(0), op, signerKey);
         op.signature = signUserOp(op, userKey);
         bytes32 opHash = getOpHash(op);
 
@@ -538,7 +542,7 @@ contract SingletonPaymasterV6Test is Test {
         uint256 paymasterConfigLength = 20;
 
         if (_mode == ERC20_MODE) {
-            paymasterConfigLength += 80;
+            paymasterConfigLength += 96;
         }
 
         if (_mode == VERIFYING_MODE) {
@@ -576,7 +580,9 @@ contract SingletonPaymasterV6Test is Test {
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp, paymasterSignerKey);
         } else if (mode == ERC20_MODE) {
-            return getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, userOp, paymasterSignerKey);
+            return getERC20ModeData(
+                data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), userOp, paymasterSignerKey
+            );
         }
 
         revert("UNEXPECTED MODE");
@@ -604,6 +610,7 @@ contract SingletonPaymasterV6Test is Test {
         address erc20,
         uint128 postOpGas,
         uint256 exchangeRate,
+        uint128 paymasterValidationGasLimit,
         UserOperation memory userOp,
         uint256 signerKey
     )
@@ -612,13 +619,28 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         userOp.paymasterAndData = abi.encodePacked(
-            data.paymasterAddress, ERC20_MODE, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate
+            data.paymasterAddress,
+            ERC20_MODE,
+            data.validUntil,
+            data.validAfter,
+            erc20,
+            postOpGas,
+            exchangeRate,
+            paymasterValidationGasLimit
         );
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
         return abi.encodePacked(
-            data.paymasterAddress, ERC20_MODE, data.validUntil, data.validAfter, erc20, postOpGas, exchangeRate, sig
+            data.paymasterAddress,
+            ERC20_MODE,
+            data.validUntil,
+            data.validAfter,
+            erc20,
+            postOpGas,
+            exchangeRate,
+            paymasterValidationGasLimit,
+            sig
         );
     }
 
