@@ -36,9 +36,9 @@ struct ERC20PostOpContext {
     uint256 maxFeePerGas;
     /// @dev The userOperation's maxPriorityFeePerGas (v0.6 only)
     uint256 maxPriorityFeePerGas;
-    /// @dev The gas overhead when performing the transferFrom call.
+    /// @dev The total allowed execution gas limit, i.e the sum of the callGasLimit and postOpGasLimit.
     uint256 executionGasLimit;
-    /// @dev The gas overhead when performing the transferFrom call.
+    /// @dev Estimate of the gas used before the userOp is executed.
     uint256 preOpGasApproximation;
 }
 
@@ -56,8 +56,7 @@ struct ERC20PaymasterData {
     uint256 exchangeRate;
     /// @dev The paymaster signature.
     bytes signature;
-    /// @dev The under estimated paymaster verification gas so that it compensates for the overestimation of
-    /// verificationGasLimit.
+    /// @dev The paymasterValidationGasLimit to be used in the postOp.
     uint128 paymasterValidationGasLimit;
 }
 
