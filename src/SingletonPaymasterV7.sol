@@ -171,29 +171,31 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         return (context, validationData);
     }
 
-    function _expectedPenaltyGas(
+    function _expectedPenaltyGasCost(
         uint256 _actualGasCost,
         uint256 _actualUserOpFeePerGas,
-        uint128 _postOpGas,
-        uint256 _preOpGasApproximation,
-        uint256 _executionGasLimit
+        uint128 postOpGas,
+        uint256 preOpGasApproximation,
+        uint256 executionGasLimit
     )
-        internal
+        public
         pure
         returns (uint256)
     {
-        uint256 actualGas = _actualGasCost / _actualUserOpFeePerGas + _postOpGas;
+        uint256 actualGas = _actualGasCost / _actualUserOpFeePerGas + postOpGas;
 
-        uint256 executionGasUsed = actualGas - _preOpGasApproximation;
+        uint256 executionGasUsed = actualGas - preOpGasApproximation;
 
-        uint256 expectedPenaltyGas;
-        if (_executionGasLimit > executionGasUsed) {
-            uint256 unusedGas = _executionGasLimit - executionGasUsed;
+        uint256 expectedPenaltyGas = 0;
+        uint256 unusedGas = 0;
+        if (executionGasLimit > executionGasUsed) {
+            unusedGas = executionGasLimit - executionGasUsed;
             expectedPenaltyGas = (unusedGas * PENALTY_PERCENT) / 100;
-            actualGas += expectedPenaltyGas;
         }
 
-        return actualGas;
+        uint256 expectedPenaltyGasCost = expectedPenaltyGas * _actualUserOpFeePerGas;
+
+        return expectedPenaltyGasCost;
     }
 
     /**
@@ -223,11 +225,13 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             uint256 executionGasLimit
         ) = _parsePostOpContext(_context);
 
-        uint256 actualGasWithPenalty = _expectedPenaltyGas(
+        uint256 expectedPenaltyGasCost = _expectedPenaltyGasCost(
             _actualGasCost, _actualUserOpFeePerGas, postOpGas, preOpGasApproximation, executionGasLimit
         );
 
-        uint256 costInToken = getCostInToken(actualGasWithPenalty, postOpGas, _actualUserOpFeePerGas, exchangeRate);
+        uint256 actualGasCost = _actualGasCost + expectedPenaltyGasCost;
+
+        uint256 costInToken = getCostInToken(actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
 
         SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
         emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);

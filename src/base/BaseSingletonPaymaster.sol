@@ -376,14 +376,14 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
 
     /**
      * @notice Gets the cost in amount of tokens.
-     * @param _actualGas The gas consumed by the userOperation.
+     * @param _actualGasCost The gas consumed by the userOperation.
      * @param _postOpGas The gas overhead of transfering the ERC-20 when making the postOp payment.
      * @param _actualUserOpFeePerGas The actual gas cost of the userOperation.
      * @param _exchangeRate The token exchange rate - how many tokens one full ETH (1e18 wei) is worth.
      * @return uint256 The gasCost in token units.
      */
     function getCostInToken(
-        uint256 _actualGas,
+        uint256 _actualGasCost,
         uint256 _postOpGas,
         uint256 _actualUserOpFeePerGas,
         uint256 _exchangeRate
@@ -392,6 +392,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         pure
         returns (uint256)
     {
-        return ((_actualGas + _postOpGas) * _actualUserOpFeePerGas * _exchangeRate) / 1e18;
+        return ((_actualGasCost + (_postOpGas * _actualUserOpFeePerGas)) * _exchangeRate) / 1e18;
     }
 }

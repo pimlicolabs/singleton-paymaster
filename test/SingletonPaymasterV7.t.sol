@@ -367,17 +367,65 @@ contract SingletonPaymasterV7Test is Test {
                 userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
                 maxFeePerGas: 0,
                 maxPriorityFeePerGas: 0,
-                executionGasLimit: uint256(0),
-                preOpGasApproximation: uint256(0)
+                preOpGasApproximation: uint256(0),
+                executionGasLimit: uint256(0)
+            })
+        );
+
+        uint256 expectedCostInToken =
+            paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
+
+        vm.prank(address(entryPoint));
+        paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost, actualUserOpFeePerGas);
+
+        vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
+    }
+
+    function test_postOpCalculation_withPenalty(
+        uint256 _exchangeRate,
+        uint128 _postOpGas,
+        uint256 _userOperationGasUsed,
+        uint256 _actualUserOpFeePerGas
+    )
+        external
+    {
+        token.sudoMint(address(account), 1e50);
+        token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
+
+        uint128 postOpGas = uint128(bound(_postOpGas, 21_000, 250_000));
+        uint256 actualUserOpFeePerGas = bound(_actualUserOpFeePerGas, 0.01 gwei, 5000 gwei);
+        uint256 userOperationGasUsed = bound(_userOperationGasUsed, 21_000, 30_000_000);
+        uint256 exchangeRate = bound(_exchangeRate, 1e6, 1e20);
+
+        uint256 actualGasCost = userOperationGasUsed * actualUserOpFeePerGas;
+        uint256 preOpGasApproximation = uint256(0);
+        uint256 executionGasLimit = uint256(userOperationGasUsed * 2);
+
+        bytes memory context = abi.encode(
+            ERC20PostOpContext({
+                sender: address(account),
+                token: address(token),
+                exchangeRate: exchangeRate,
+                postOpGas: postOpGas,
+                userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
+                maxFeePerGas: 0,
+                maxPriorityFeePerGas: 0,
+                preOpGasApproximation: preOpGasApproximation,
+                executionGasLimit: executionGasLimit
             })
         );
 
         vm.prank(address(entryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost, actualUserOpFeePerGas);
-        uint256 expectedCostInToken =
-            paymaster.getCostInToken(userOperationGasUsed, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
-        // TODO: Check when preOpGasApproximation is not 0
+        uint256 expectedPenaltyGasCost = paymaster._expectedPenaltyGasCost(
+            actualGasCost, actualUserOpFeePerGas, postOpGas, preOpGasApproximation, executionGasLimit
+        );
+
+        uint256 expectedCostInToken = paymaster.getCostInToken(
+            actualGasCost + expectedPenaltyGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate
+        );
+
         vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
     }
 
