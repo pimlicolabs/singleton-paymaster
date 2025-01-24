@@ -26,6 +26,8 @@ struct ERC20PostOpContext {
     address sender;
     /// @dev The token used to pay for gas sponsorship.
     address token;
+    /// @dev The treasury address where the tokens will be sent to.
+    address treasury;
     /// @dev The exchange rate between the token and the chain's native currency.
     uint256 exchangeRate;
     /// @dev The gas overhead when performing the transferFrom call.
@@ -44,6 +46,8 @@ struct ERC20PostOpContext {
 
 /// @notice Hold all configs needed in ERC-20 mode.
 struct ERC20PaymasterData {
+    /// @dev The treasury address where the tokens will be sent to.
+    address treasury;
     /// @dev Timestamp until which the sponsorship is valid.
     uint48 validUntil;
     /// @dev Timestamp after which the sponsorship is valid.
@@ -123,9 +127,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /// @param bundler address of the bundler that was not allowlisted
     error BundlerNotAllowed(address bundler);
 
-    /// @notice Emitted when a new treasury is set.
-    event TreasuryUpdated(address oldTreasury, address newTreasury);
-
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -146,9 +147,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Address where all ERC-20 tokens will be sent to.
-    address public treasury;
-
     /// @notice Allowlist of bundlers to use if restricting bundlers is enabled by flag
     mapping(address bundler => bool allowed) public isBundlerAllowed;
 
@@ -168,18 +166,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         BasePaymaster(_entryPoint, _owner)
         MultiSigner(_signers)
-    {
-        treasury = _owner;
-    }
+    { }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      ADMIN FUNCTIONS                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
-
-    function setTreasury(address _treasury) public onlyOwner {
-        emit TreasuryUpdated(treasury, _treasury);
-        treasury = _treasury;
-    }
 
     /// @notice Add or remove multiple bundlers to/from the allowlist
     ///
@@ -240,7 +231,8 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint128 postOpGas = uint128(bytes16(_paymasterConfig[32:48]));
         uint256 exchangeRate = uint256(bytes32(_paymasterConfig[48:80]));
         uint128 paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[80:96]));
-        bytes calldata signature = _paymasterConfig[96:];
+        address treasury = address(bytes20(_paymasterConfig[96:116]));
+        bytes calldata signature = _paymasterConfig[116:];
 
         if (token == address(0)) {
             revert TokenAddressInvalid();
@@ -259,6 +251,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
             validAfter: validAfter,
             token: token,
             exchangeRate: exchangeRate,
+            treasury: treasury,
             postOpGas: postOpGas,
             signature: signature,
             paymasterValidationGasLimit: paymasterValidationGasLimit
@@ -317,11 +310,13 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         address _token = _cfg.token;
         uint256 _exchangeRate = _cfg.exchangeRate;
         uint128 _postOpGas = _cfg.postOpGas;
+        address treasury = _cfg.treasury;
 
         return abi.encode(
             ERC20PostOpContext({
                 sender: _userOp.sender,
                 token: _token,
+                treasury: treasury,
                 exchangeRate: _exchangeRate,
                 postOpGas: _postOpGas,
                 userOpHash: _userOpHash,
@@ -353,7 +348,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 _exchangeRate = _cfg.exchangeRate;
         uint128 _postOpGas = _cfg.postOpGas;
         uint128 _paymasterValidationGasLimit = _cfg.paymasterValidationGasLimit;
-
+        address treasury = _cfg.treasury;
         // the limit we have for executing the userOp.
         uint256 executionGasLimit = _userOp.unpackCallGasLimit() + _userOp.unpackPostOpGasLimit();
 
@@ -367,6 +362,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
             ERC20PostOpContext({
                 sender: _userOp.sender,
                 token: _token,
+                treasury: treasury,
                 exchangeRate: _exchangeRate,
                 postOpGas: _postOpGas,
                 userOpHash: _userOpHash,
@@ -383,13 +379,14 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         internal
         pure
-        returns (address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256)
+        returns (address, address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256)
     {
         ERC20PostOpContext memory ctx = abi.decode(_context, (ERC20PostOpContext));
 
         return (
             ctx.sender,
             ctx.token,
+            ctx.treasury,
             ctx.exchangeRate,
             ctx.postOpGas,
             ctx.userOpHash,

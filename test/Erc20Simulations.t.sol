@@ -44,6 +44,7 @@ contract SingletonPaymasterV6Test is Test {
     address payable beneficiary;
     address paymasterOwner;
     address paymasterSigner;
+    address treasury;
     uint256 paymasterSignerKey;
     uint256 unauthorizedSignerKey;
     address user;
@@ -63,6 +64,7 @@ contract SingletonPaymasterV6Test is Test {
 
         beneficiary = payable(makeAddr("beneficiary"));
         paymasterOwner = makeAddr("paymasterOwner");
+        treasury = makeAddr("treasury");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -82,13 +84,13 @@ contract SingletonPaymasterV6Test is Test {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         UserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
         op.signature = signUserOp(op, userKey);
 
-        new Erc20PaymasterSimulationsV6(token, op, address(entryPoint), paymasterOwner);
+        new Erc20PaymasterSimulationsV6(token, op, address(entryPoint), treasury);
     }
 
     function getSignedPaymasterData(uint8 mode, UserOperation memory userOp) private view returns (bytes memory) {
@@ -148,7 +150,8 @@ contract SingletonPaymasterV6Test is Test {
             erc20,
             postOpGas,
             exchangeRate,
-            paymasterValidationGasLimit
+            paymasterValidationGasLimit,
+            treasury
         );
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
@@ -163,6 +166,7 @@ contract SingletonPaymasterV6Test is Test {
             postOpGas,
             exchangeRate,
             paymasterValidationGasLimit,
+            treasury,
             sig
         );
     }

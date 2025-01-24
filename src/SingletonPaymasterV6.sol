@@ -171,6 +171,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         (
             address sender,
             address token,
+            address treasury,
             uint256 exchangeRate,
             uint128 postOpGas,
             bytes32 userOpHash,

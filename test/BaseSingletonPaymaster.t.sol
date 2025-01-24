@@ -56,20 +56,6 @@ contract BaseSingletonPaymasterTest is Test {
     function testDeploy() external view {
         assertEq(address(paymaster.entryPoint()), address(entryPoint));
         assertEq(address(paymaster.owner()), paymasterOwner);
-        assertEq(address(paymaster.treasury()), paymasterOwner);
-    }
-
-    function testUpdateTreasury() external {
-        assertEq(paymaster.treasury(), paymasterOwner);
-
-        // only owner should be able to update treasury.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        paymaster.setTreasury(address(this));
-
-        // should pass if caller is owner.
-        vm.prank(paymasterOwner);
-        paymaster.setTreasury(beneficiary);
-        assertEq(paymaster.treasury(), beneficiary);
     }
 
     function testAddSigner() external {
