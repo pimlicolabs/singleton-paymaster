@@ -112,6 +112,17 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 exchangeRate
     );
 
+    /// @notice Event for changing a bundler allowlist configuration
+    ///
+    /// @param bundler Address of the bundler
+    /// @param allowed True if was allowlisted, false if removed from allowlist
+    event BundlerAllowlistUpdated(address bundler, bool allowed);
+
+    /// @notice Error for bundler not allowed
+    ///
+    /// @param bundler address of the bundler that was not allowlisted
+    error BundlerNotAllowed(address bundler);
+
     /// @notice Emitted when a new treasury is set.
     event TreasuryUpdated(address oldTreasury, address newTreasury);
 
@@ -137,6 +148,9 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
 
     /// @notice Address where all ERC-20 tokens will be sent to.
     address public treasury;
+
+    /// @notice Allowlist of bundlers to use if restricting bundlers is enabled by flag
+    mapping(address bundler => bool allowed) public isBundlerAllowed;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
@@ -167,6 +181,17 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         treasury = _treasury;
     }
 
+    /// @notice Add or remove multiple bundlers to/from the allowlist
+    ///
+    /// @param bundlers Array of bundler addresses
+    /// @param allowed Boolean indicating if bundlers should be allowed or not
+    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external onlyOwner {
+        for (uint256 i = 0; i < bundlers.length; i++) {
+            isBundlerAllowed[bundlers[i]] = allowed;
+            emit BundlerAllowlistUpdated(bundlers[i], allowed);
+        }
+    }
+
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      INTERNAL HELPERS                      */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -186,16 +211,17 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         internal
         pure
-        returns (uint8, bytes calldata)
+        returns (uint8, bool, bytes calldata)
     {
         if (_paymasterAndData.length < _paymasterDataOffset + 1) {
             revert PaymasterAndDataLengthInvalid();
         }
 
         uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));
-        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 1:];
+        bool allowAllBundlers = uint8(bytes1(_paymasterAndData[_paymasterDataOffset + 1:_paymasterDataOffset + 2])) == 1;
+        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 2:];
 
-        return (mode, paymasterConfig);
+        return (mode, allowAllBundlers, paymasterConfig);
     }
 
     /**

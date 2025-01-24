@@ -80,8 +80,12 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         internal
         returns (bytes memory, uint256)
     {
-        (uint8 mode, bytes calldata paymasterConfig) =
+        (uint8 mode, bool allowAllBundlers, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
+
+        if (!allowAllBundlers && !isBundlerAllowed[tx.origin]) {
+            revert BundlerNotAllowed(tx.origin);
+        }
 
         if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
             revert PaymasterModeInvalid();

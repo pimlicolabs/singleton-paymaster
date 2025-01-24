@@ -30,11 +30,14 @@ struct PaymasterData {
     address paymasterAddress;
     uint48 validUntil;
     uint48 validAfter;
+    bool allowAllBundlers;
 }
 
 contract SingletonPaymasterV6Test is Test {
     uint8 immutable VERIFYING_MODE = 0;
     uint8 immutable ERC20_MODE = 1;
+    bool immutable ALLOW_ALL_BUNDLERS = true;
+    bool immutable ALLOW_WHITELISTED_BUNDLERS = false;
     uint256 immutable EXCHANGE_RATE = 3000 * 1e18;
     uint128 immutable POSTOP_GAS = 50_000;
 
@@ -92,7 +95,7 @@ contract SingletonPaymasterV6Test is Test {
         assertEq(token.balanceOf(paymasterOwner), 0);
 
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op);
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -110,7 +113,7 @@ contract SingletonPaymasterV6Test is Test {
 
     function testVerifyingSuccess() external {
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(VERIFYING_MODE, op);
+        op.paymasterAndData = getSignedPaymasterData(VERIFYING_MODE, ALLOW_ALL_BUNDLERS, op);
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -124,7 +127,7 @@ contract SingletonPaymasterV6Test is Test {
         UserOperation memory op = fillUserOp();
 
         // sign with random private key to force false signature
-        PaymasterData memory data = PaymasterData(address(paymaster), 0, 0);
+        PaymasterData memory data = PaymasterData(address(paymaster), 0, 0, ALLOW_ALL_BUNDLERS);
         op.paymasterAndData =
             getERC20ModeData(data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), op, unauthorizedSignerKey);
         op.signature = signUserOp(op, userKey);
@@ -137,7 +140,7 @@ contract SingletonPaymasterV6Test is Test {
         UserOperation memory op = fillUserOp();
 
         // sign with random private key to force false signature
-        PaymasterData memory data = PaymasterData(address(paymaster), 0, 0);
+        PaymasterData memory data = PaymasterData(address(paymaster), 0, 0, ALLOW_ALL_BUNDLERS);
         op.paymasterAndData = getVerifyingModeData(data, op, unauthorizedSignerKey);
         op.signature = signUserOp(op, userKey);
 
@@ -152,7 +155,7 @@ contract SingletonPaymasterV6Test is Test {
         UserOperation memory op = fillUserOp();
         op.maxPriorityFeePerGas = 5;
         op.maxFeePerGas = 5;
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op);
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -170,7 +173,7 @@ contract SingletonPaymasterV6Test is Test {
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), invalidMode);
+        op.paymasterAndData = abi.encodePacked(address(paymaster), invalidMode, ALLOW_ALL_BUNDLERS);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA33 reverted (or OOG)"));
         submitUserOp(op);
@@ -190,8 +193,9 @@ contract SingletonPaymasterV6Test is Test {
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), mode, _randomBytes);
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster), uint128(100_000), uint128(50_000), mode, ALLOW_ALL_BUNDLERS, _randomBytes
+        );
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
         submitUserOp(op);
@@ -209,6 +213,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint128(100_000),
                 uint128(50_000),
                 mode,
+                ALLOW_ALL_BUNDLERS,
                 uint48(0),
                 int48(0),
                 "BYTES WITH INVALID SIGNATURE LENGTH"
@@ -221,6 +226,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint128(100_000),
                 uint128(50_000),
                 mode,
+                ALLOW_ALL_BUNDLERS,
                 uint48(0),
                 int48(0),
                 address(token),
@@ -241,7 +247,7 @@ contract SingletonPaymasterV6Test is Test {
     function test_RevertWhen_PostOpTransferFromFailed() external {
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op);
         op.signature = signUserOp(op, userKey);
 
         uint256 nonce = 0;
@@ -260,6 +266,7 @@ contract SingletonPaymasterV6Test is Test {
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
             ERC20_MODE,
+            ALLOW_ALL_BUNDLERS,
             uint48(0), // validUntil
             int48(0), // validAfter
             address(0), // **will throw here, token address cannot be zero.**
@@ -281,6 +288,7 @@ contract SingletonPaymasterV6Test is Test {
         op.paymasterAndData = abi.encodePacked(
             address(paymaster),
             ERC20_MODE,
+            ALLOW_ALL_BUNDLERS,
             uint48(0), // validUntil
             uint48(0), // validAfter
             address(token), // token
@@ -317,12 +325,59 @@ contract SingletonPaymasterV6Test is Test {
         paymaster.validatePaymasterUserOp(op, opHash, 0);
     }
 
+    function test_RevertWhen_BundlerNotAllowed() external {
+        setupERC20Environment();
+
+        // treasury should have no tokens
+        assertEq(token.balanceOf(paymasterOwner), 0);
+
+        UserOperation memory op = fillUserOp();
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op);
+        op.signature = signUserOp(op, userKey);
+
+        // check that UserOperationSponsored log is emitted.
+        // event data check is skipped because we don't know how much will be spent.
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
+
+        submitUserOp(op);
+    }
+
+    function test_RevertWhen_OnlyBundlerAllowed() external {
+        setupERC20Environment();
+
+        // treasury should have no tokens
+        assertEq(token.balanceOf(paymasterOwner), 0);
+
+        address[] memory bundlers = new address[](1);
+        bundlers[0] = address(DEFAULT_SENDER);
+
+        paymasterOwner = makeAddr("paymasterOwner");
+        vm.prank(paymasterOwner);
+        paymaster.updateBundlerAllowlist(bundlers, true);
+
+        UserOperation memory op = fillUserOp();
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op);
+        op.signature = signUserOp(op, userKey);
+
+        // check that UserOperationSponsored log is emitted.
+        // event data check is skipped because we don't know how much will be spent.
+        vm.expectEmit(true, true, true, false, address(paymaster));
+        emit BaseSingletonPaymaster.UserOperationSponsored(
+            getOpHash(op), op.sender, ERC20_MODE, address(token), 0, EXCHANGE_RATE
+        );
+
+        submitUserOp(op);
+
+        // treasury should now have tokens
+        assertGt(token.balanceOf(paymasterOwner), 0);
+    }
+
     // context and validation data should be properly encoded in Verifying mode.
     // should not revert when a invalid signature is presented (requirement by entryPoint so that bundler can run
     // simulations)
     function test_verifyingValidatePaymasterUserOp(uint48 _validUntil, uint48 _validAfter) external {
         UserOperation memory op = fillUserOp();
-        PaymasterData memory data = PaymasterData(address(paymaster), _validUntil, _validAfter);
+        PaymasterData memory data = PaymasterData(address(paymaster), _validUntil, _validAfter, ALLOW_ALL_BUNDLERS);
 
         // Test with correct signature
         verifyingValidateOpHelper(op, data, paymasterSignerKey, 0);
@@ -368,7 +423,7 @@ contract SingletonPaymasterV6Test is Test {
         vm.assume(_token != address(0));
 
         UserOperation memory op = fillUserOp();
-        PaymasterData memory data = PaymasterData(address(paymaster), _validUntil, _validAfter);
+        PaymasterData memory data = PaymasterData(address(paymaster), _validUntil, _validAfter, ALLOW_ALL_BUNDLERS);
 
         // Test with correct signature
         validateERC20PaymasterUserOp(op, data, _token, _postOpGas, _exchangeRate, 0, paymasterSignerKey);
@@ -477,7 +532,7 @@ contract SingletonPaymasterV6Test is Test {
 
     function flipUserOperationBitsAndValidateSignature(uint8 _mode) internal {
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(_mode, op);
+        op.paymasterAndData = getSignedPaymasterData(_mode, ALLOW_ALL_BUNDLERS, op);
         op.signature = signUserOp(op, userKey);
 
         checkIsPaymasterSignatureValid(op, true);
@@ -554,8 +609,8 @@ contract SingletonPaymasterV6Test is Test {
             for (uint8 bitPosition = 0; bitPosition < 8; bitPosition++) {
                 uint256 mask = 1 << bitPosition;
 
-                // we don't want to flip the mode byte
-                if (byteIndex == 20) {
+                // we don't want to flip the mode byte and allowAllBundlers byte
+                if (byteIndex == 20 || byteIndex == 21) {
                     continue;
                 }
 
@@ -573,9 +628,21 @@ contract SingletonPaymasterV6Test is Test {
         assertEq(uint160(validationData), isSignatureValid ? 0 : 1);
     }
 
-    function getSignedPaymasterData(uint8 mode, UserOperation memory userOp) private view returns (bytes memory) {
-        PaymasterData memory data =
-            PaymasterData({ paymasterAddress: address(paymaster), validUntil: 0, validAfter: 0 });
+    function getSignedPaymasterData(
+        uint8 mode,
+        bool allowAllBundlers,
+        UserOperation memory userOp
+    )
+        private
+        view
+        returns (bytes memory)
+    {
+        PaymasterData memory data = PaymasterData({
+            paymasterAddress: address(paymaster),
+            validUntil: 0,
+            validAfter: 0,
+            allowAllBundlers: allowAllBundlers
+        });
 
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp, paymasterSignerKey);
@@ -598,11 +665,15 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         // set paymasterAndData here so that correct hash is calculated.
-        userOp.paymasterAndData = abi.encodePacked(address(paymaster), VERIFYING_MODE, data.validUntil, data.validAfter);
+        userOp.paymasterAndData = abi.encodePacked(
+            address(paymaster), VERIFYING_MODE, data.allowAllBundlers, data.validUntil, data.validAfter
+        );
         bytes32 hash = paymaster.getHash(VERIFYING_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(data.paymasterAddress, VERIFYING_MODE, data.validUntil, data.validAfter, sig);
+        return abi.encodePacked(
+            data.paymasterAddress, VERIFYING_MODE, data.allowAllBundlers, data.validUntil, data.validAfter, sig
+        );
     }
 
     function getERC20ModeData(
@@ -621,6 +692,7 @@ contract SingletonPaymasterV6Test is Test {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             ERC20_MODE,
+            data.allowAllBundlers,
             data.validUntil,
             data.validAfter,
             erc20,
@@ -634,6 +706,7 @@ contract SingletonPaymasterV6Test is Test {
         return abi.encodePacked(
             data.paymasterAddress,
             ERC20_MODE,
+            data.allowAllBundlers,
             data.validUntil,
             data.validAfter,
             erc20,
