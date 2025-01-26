@@ -46,6 +46,7 @@ contract SingletonPaymasterV7Test is Test {
     address payable beneficiary;
     address paymasterOwner;
     address paymasterSigner;
+    address treasury;
     uint256 paymasterSignerKey;
     uint256 unauthorizedSignerKey;
     address user;
@@ -65,6 +66,7 @@ contract SingletonPaymasterV7Test is Test {
 
         beneficiary = payable(makeAddr("beneficiary"));
         paymasterOwner = makeAddr("paymasterOwner");
+        treasury = makeAddr("treasury");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -86,7 +88,7 @@ contract SingletonPaymasterV7Test is Test {
         subject.addSigner(paymasterSigner);
 
         assertEq(subject.owner(), paymasterOwner);
-        assertEq(subject.treasury(), paymasterOwner);
+        // assertEq(subject.treasury(), paymasterOwner);
         assertTrue(subject.signers(paymasterSigner));
     }
 
@@ -94,7 +96,7 @@ contract SingletonPaymasterV7Test is Test {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         PackedUserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op);
@@ -110,7 +112,7 @@ contract SingletonPaymasterV7Test is Test {
         submitUserOp(op);
 
         // treasury should now have tokens
-        assertGt(token.balanceOf(paymasterOwner), 0);
+        assertGt(token.balanceOf(treasury), 0);
     }
 
     function testVerifyingSuccess() external {
@@ -230,6 +232,7 @@ contract SingletonPaymasterV7Test is Test {
                 address(token), // token
                 uint128(1), // postOpGas
                 uint256(1), // exchangeRate
+                treasury,
                 "BYTES WITH INVALID SIGNATURE LENGTH"
             );
         }
@@ -263,6 +266,7 @@ contract SingletonPaymasterV7Test is Test {
             uint128(0),
             uint256(1),
             uint128(0), // paymasterValidationGasLimit
+            treasury,
             "DummySignature"
         );
 
@@ -295,6 +299,7 @@ contract SingletonPaymasterV7Test is Test {
             uint128(0),
             uint256(0), // will throw here, price cannot be zero.
             PAYMASTER_VALIDATION_GAS_LIMIT,
+            treasury,
             "DummySignature"
         );
 
@@ -371,6 +376,7 @@ contract SingletonPaymasterV7Test is Test {
             ERC20PostOpContext({
                 sender: address(account),
                 token: address(token),
+                treasury: address(treasury),
                 exchangeRate: exchangeRate,
                 postOpGas: postOpGas,
                 userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
@@ -387,7 +393,7 @@ contract SingletonPaymasterV7Test is Test {
         vm.prank(address(entryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost, actualUserOpFeePerGas);
 
-        vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
+        vm.assertEq(expectedCostInToken, token.balanceOf(treasury));
     }
 
     function test_postOpCalculation_withPenalty(
@@ -414,6 +420,7 @@ contract SingletonPaymasterV7Test is Test {
             ERC20PostOpContext({
                 sender: address(account),
                 token: address(token),
+                treasury: address(treasury),
                 exchangeRate: exchangeRate,
                 postOpGas: postOpGas,
                 userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
@@ -435,14 +442,14 @@ contract SingletonPaymasterV7Test is Test {
             actualGasCost + expectedPenaltyGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate
         );
 
-        vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
+        vm.assertEq(expectedCostInToken, token.balanceOf(treasury));
     }
 
     function test_RevertWhen_BundlerNotAllowed() external {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         PackedUserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op);
@@ -466,7 +473,7 @@ contract SingletonPaymasterV7Test is Test {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         address[] memory bundlers = new address[](1);
         bundlers[0] = address(DEFAULT_SENDER);
@@ -489,7 +496,7 @@ contract SingletonPaymasterV7Test is Test {
         submitUserOp(op);
 
         // treasury should now have tokens
-        assertGt(token.balanceOf(paymasterOwner), 0);
+        assertGt(token.balanceOf(treasury), 0);
     }
 
     function test_RevertWhen_NonEntryPointCaller() external {
@@ -824,10 +831,13 @@ contract SingletonPaymasterV7Test is Test {
             exchangeRate,
             paymasterValidationGasLimit
         );
+
+        userOp.paymasterAndData = abi.encodePacked(userOp.paymasterAndData, treasury);
+
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signingKey);
 
-        return abi.encodePacked(
+        userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
             data.postOpGas,
@@ -838,9 +848,12 @@ contract SingletonPaymasterV7Test is Test {
             erc20,
             postOpGas,
             exchangeRate,
-            paymasterValidationGasLimit,
-            sig
+            paymasterValidationGasLimit
         );
+
+        userOp.paymasterAndData = abi.encodePacked(userOp.paymasterAndData, treasury, sig);
+
+        return userOp.paymasterAndData;
     }
 
     function getSignature(bytes32 hash, uint256 signingKey) private pure returns (bytes memory) {

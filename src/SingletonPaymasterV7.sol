@@ -220,6 +220,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         (
             address sender,
             address token,
+            address treasury,
             uint256 exchangeRate,
             uint128 postOpGas,
             bytes32 userOpHash,

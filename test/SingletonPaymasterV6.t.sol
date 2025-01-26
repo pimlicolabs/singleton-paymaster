@@ -44,6 +44,7 @@ contract SingletonPaymasterV6Test is Test {
     address payable beneficiary;
     address paymasterOwner;
     address paymasterSigner;
+    address treasury;
     uint256 paymasterSignerKey;
     uint256 unauthorizedSignerKey;
     address user;
@@ -63,6 +64,7 @@ contract SingletonPaymasterV6Test is Test {
 
         beneficiary = payable(makeAddr("beneficiary"));
         paymasterOwner = makeAddr("paymasterOwner");
+        treasury = makeAddr("treasury");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -84,7 +86,6 @@ contract SingletonPaymasterV6Test is Test {
         subject.addSigner(paymasterSigner);
 
         assertEq(subject.owner(), paymasterOwner);
-        assertEq(subject.treasury(), paymasterOwner);
         assertTrue(subject.signers(paymasterSigner));
     }
 
@@ -92,7 +93,7 @@ contract SingletonPaymasterV6Test is Test {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         UserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op);
@@ -108,7 +109,7 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
 
         // treasury should now have tokens
-        assertGt(token.balanceOf(paymasterOwner), 0);
+        assertGt(token.balanceOf(treasury), 0);
     }
 
     function testVerifyingSuccess() external {
@@ -346,7 +347,7 @@ contract SingletonPaymasterV6Test is Test {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         address[] memory bundlers = new address[](1);
         bundlers[0] = address(DEFAULT_SENDER);
@@ -369,7 +370,7 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
 
         // treasury should now have tokens
-        assertGt(token.balanceOf(paymasterOwner), 0);
+        assertGt(token.balanceOf(treasury), 0);
     }
 
     // context and validation data should be properly encoded in Verifying mode.
@@ -466,6 +467,7 @@ contract SingletonPaymasterV6Test is Test {
             ERC20PostOpContext({
                 sender: address(account),
                 token: address(token),
+                treasury: address(treasury),
                 exchangeRate: exchangeRate,
                 postOpGas: postOpGas,
                 userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
@@ -482,7 +484,7 @@ contract SingletonPaymasterV6Test is Test {
             paymaster.getCostInToken(userOperationGasUsed, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
         // TODO: Check when preOpGasApproximation is not 0
-        vm.assertEq(expectedCostInToken, token.balanceOf(paymaster.treasury()));
+        vm.assertEq(expectedCostInToken, token.balanceOf(treasury));
     }
 
     function validateERC20PaymasterUserOp(
@@ -698,7 +700,8 @@ contract SingletonPaymasterV6Test is Test {
             erc20,
             postOpGas,
             exchangeRate,
-            paymasterValidationGasLimit
+            paymasterValidationGasLimit,
+            treasury
         );
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
@@ -713,6 +716,7 @@ contract SingletonPaymasterV6Test is Test {
             postOpGas,
             exchangeRate,
             paymasterValidationGasLimit,
+            treasury,
             sig
         );
     }
