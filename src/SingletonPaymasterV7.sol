@@ -86,6 +86,47 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @param _userOp The userOperation.
      * @param _userOpHash The userOperation hash.
      * @return (context, validationData) The context and validation data to return to the EntryPoint.
+     *
+     * @dev paymasterAndData for mode 0:
+     * - paymaster address (20 bytes)
+     * - paymaster verification gas (16 bytes)
+     * - paymaster postop gas (16 bytes)
+     * - mode (1 byte) = 0
+     * - allowAllBundlers (1 byte)
+     * - validUntil (6 bytes)
+     * - validAfter (6 bytes)
+     * - signature (64 or 65 bytes)
+     *
+     * @dev paymasterAndData for mode 1:
+     * - paymaster address (20 bytes)
+     * - paymaster verification gas (16 bytes)
+     * - paymaster postop gas (16 bytes)
+     * - mode (1 byte) = 1
+     * - allowAllBundlers (1 byte)
+     * - validUntil (6 bytes)
+     * - validAfter (6 bytes)
+     * - token address (20 bytes)
+     * - postOpGas (16 bytes)
+     * - exchangeRate (32 bytes)
+     * - paymasterValidationGasLimit (16 bytes)
+     * - treasury (20 bytes)
+     * - signature (64 or 65 bytes)
+     *
+     * @dev paymasterAndData for mode 2:
+     * - paymaster address (20 bytes)
+     * - paymaster verification gas (16 bytes)
+     * - paymaster postop gas (16 bytes)
+     * - mode (1 byte) = 2
+     * - allowAllBundlers (1 byte)
+     * - validUntil (6 bytes)
+     * - validAfter (6 bytes)
+     * - token address (20 bytes)
+     * - postOpGas (16 bytes)
+     * - exchangeRate (32 bytes)
+     * - paymasterValidationGasLimit (16 bytes)
+     * - treasury (20 bytes)
+     * - constantFee (16 bytes)
+     * - signature (64 or 65 bytes)
      */
     function _validatePaymasterUserOp(
         PackedUserOperation calldata _userOp,
@@ -95,10 +136,14 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         internal
         returns (bytes memory, uint256)
     {
-        (uint8 mode, bytes calldata paymasterConfig) =
+        (uint8 mode, bool allowAllBundlers, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
-        if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
+        if (!allowAllBundlers && !isBundlerAllowed[tx.origin]) {
+            revert BundlerNotAllowed(tx.origin);
+        }
+
+        if (mode != ERC20_MODE && mode != VERIFYING_MODE && mode != ERC20_WITH_CONSTANT_FEE_MODE) {
             revert PaymasterModeInvalid();
         }
 
@@ -109,8 +154,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        if (mode == ERC20_MODE) {
-            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
+        if (mode == ERC20_MODE || mode == ERC20_WITH_CONSTANT_FEE_MODE) {
+            (context, validationData) = _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash);
         }
 
         return (context, validationData);
@@ -151,6 +196,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @return (context, validationData) The validation data to return to the EntryPoint.
      */
     function _validateERC20Mode(
+        uint8 _mode,
         PackedUserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
@@ -159,9 +205,9 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         view
         returns (bytes memory, uint256)
     {
-        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
+        ERC20PaymasterData memory cfg = _parseErc20Config(_mode, _paymasterConfig);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(ERC20_MODE, _userOp));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_mode, _userOp));
         address recoveredSigner = ECDSA.recover(hash, cfg.signature);
 
         bool isSignatureValid = signers[recoveredSigner];
@@ -216,13 +262,15 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         (
             address sender,
             address token,
+            address treasury,
             uint256 exchangeRate,
             uint128 postOpGas,
             bytes32 userOpHash,
             ,
             ,
             uint256 preOpGasApproximation,
-            uint256 executionGasLimit
+            uint256 executionGasLimit,
+            uint128 constantFee
         ) = _parsePostOpContext(_context);
 
         uint256 expectedPenaltyGasCost = _expectedPenaltyGasCost(
@@ -233,8 +281,15 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         uint256 costInToken = getCostInToken(actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
 
-        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken);
-        emit UserOperationSponsored(userOpHash, sender, ERC20_MODE, token, costInToken, exchangeRate);
+        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken + constantFee);
+        emit UserOperationSponsored(
+            userOpHash,
+            sender,
+            constantFee > 0 ? ERC20_WITH_CONSTANT_FEE_MODE : ERC20_MODE,
+            token,
+            costInToken,
+            exchangeRate
+        );
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -250,6 +305,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     function getHash(uint8 _mode, PackedUserOperation calldata _userOp) public view returns (bytes32) {
         if (_mode == VERIFYING_MODE) {
             return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH);
+        } else if (_mode == ERC20_WITH_CONSTANT_FEE_MODE) {
+            return _getHash(_userOp, ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH);
         } else {
             return _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH);
         }

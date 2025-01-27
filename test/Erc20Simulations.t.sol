@@ -36,6 +36,7 @@ struct PaymasterData {
 
 contract SingletonPaymasterV6Test is Test {
     uint8 immutable VERIFYING_MODE = 0;
+    uint8 immutable ALLOW_ALL_BUNDLERS = 1;
     uint8 immutable ERC20_MODE = 1;
     uint256 immutable EXCHANGE_RATE = 3000 * 1e18;
     uint128 immutable POSTOP_GAS = 50_000;
@@ -43,6 +44,7 @@ contract SingletonPaymasterV6Test is Test {
     address payable beneficiary;
     address paymasterOwner;
     address paymasterSigner;
+    address treasury;
     uint256 paymasterSignerKey;
     uint256 unauthorizedSignerKey;
     address user;
@@ -62,6 +64,7 @@ contract SingletonPaymasterV6Test is Test {
 
         beneficiary = payable(makeAddr("beneficiary"));
         paymasterOwner = makeAddr("paymasterOwner");
+        treasury = makeAddr("treasury");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -81,13 +84,13 @@ contract SingletonPaymasterV6Test is Test {
         setupERC20Environment();
 
         // treasury should have no tokens
-        assertEq(token.balanceOf(paymasterOwner), 0);
+        assertEq(token.balanceOf(treasury), 0);
 
         UserOperation memory op = fillUserOp();
         op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, op);
         op.signature = signUserOp(op, userKey);
 
-        new Erc20PaymasterSimulationsV6(token, op, address(entryPoint), paymasterOwner);
+        new Erc20PaymasterSimulationsV6(token, op, address(entryPoint), treasury);
     }
 
     function getSignedPaymasterData(uint8 mode, UserOperation memory userOp) private view returns (bytes memory) {
@@ -115,11 +118,14 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         // set paymasterAndData here so that correct hash is calculated.
-        userOp.paymasterAndData = abi.encodePacked(address(paymaster), VERIFYING_MODE, data.validUntil, data.validAfter);
+        userOp.paymasterAndData =
+            abi.encodePacked(address(paymaster), VERIFYING_MODE, ALLOW_ALL_BUNDLERS, data.validUntil, data.validAfter);
         bytes32 hash = paymaster.getHash(VERIFYING_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(data.paymasterAddress, VERIFYING_MODE, data.validUntil, data.validAfter, sig);
+        return abi.encodePacked(
+            data.paymasterAddress, VERIFYING_MODE, ALLOW_ALL_BUNDLERS, data.validUntil, data.validAfter, sig
+        );
     }
 
     function getERC20ModeData(
@@ -138,12 +144,14 @@ contract SingletonPaymasterV6Test is Test {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             ERC20_MODE,
+            ALLOW_ALL_BUNDLERS,
             data.validUntil,
             data.validAfter,
             erc20,
             postOpGas,
             exchangeRate,
-            paymasterValidationGasLimit
+            paymasterValidationGasLimit,
+            treasury
         );
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
@@ -151,12 +159,14 @@ contract SingletonPaymasterV6Test is Test {
         return abi.encodePacked(
             data.paymasterAddress,
             ERC20_MODE,
+            ALLOW_ALL_BUNDLERS,
             data.validUntil,
             data.validAfter,
             erc20,
             postOpGas,
             exchangeRate,
             paymasterValidationGasLimit,
+            treasury,
             sig
         );
     }

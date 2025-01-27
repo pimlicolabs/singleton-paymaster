@@ -26,6 +26,8 @@ struct ERC20PostOpContext {
     address sender;
     /// @dev The token used to pay for gas sponsorship.
     address token;
+    /// @dev The treasury address where the tokens will be sent to.
+    address treasury;
     /// @dev The exchange rate between the token and the chain's native currency.
     uint256 exchangeRate;
     /// @dev The gas overhead when performing the transferFrom call.
@@ -40,10 +42,14 @@ struct ERC20PostOpContext {
     uint256 executionGasLimit;
     /// @dev Estimate of the gas used before the userOp is executed.
     uint256 preOpGasApproximation;
+    /// @dev A constant fee that is added to the userOp's gas cost.
+    uint128 constantFee;
 }
 
 /// @notice Hold all configs needed in ERC-20 mode.
 struct ERC20PaymasterData {
+    /// @dev The treasury address where the tokens will be sent to.
+    address treasury;
     /// @dev Timestamp until which the sponsorship is valid.
     uint48 validUntil;
     /// @dev Timestamp after which the sponsorship is valid.
@@ -58,6 +64,8 @@ struct ERC20PaymasterData {
     bytes signature;
     /// @dev The paymasterValidationGasLimit to be used in the postOp.
     uint128 paymasterValidationGasLimit;
+    /// @dev A constant fee that is added to the userOp's gas cost.
+    uint128 constantFee;
 }
 
 /// @title BaseSingletonPaymaster
@@ -112,8 +120,16 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 exchangeRate
     );
 
-    /// @notice Emitted when a new treasury is set.
-    event TreasuryUpdated(address oldTreasury, address newTreasury);
+    /// @notice Event for changing a bundler allowlist configuration
+    ///
+    /// @param bundler Address of the bundler
+    /// @param allowed True if was allowlisted, false if removed from allowlist
+    event BundlerAllowlistUpdated(address bundler, bool allowed);
+
+    /// @notice Error for bundler not allowed
+    ///
+    /// @param bundler address of the bundler that was not allowlisted
+    error BundlerNotAllowed(address bundler);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
@@ -125,18 +141,25 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /// @notice Mode indicating that the Paymaster is in ERC-20 mode.
     uint8 immutable ERC20_MODE = 1;
 
+    /// @notice Mode indicating that the Paymaster is in ERC-20 mode with a constant fee.
+    uint8 immutable ERC20_WITH_CONSTANT_FEE_MODE = 2;
+
     /// @notice The length of the ERC-20 config without singature.
-    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 96;
+    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118; // 116 + 2 (mode & allowAllBundlers)
+
+    /// @notice The length of the ERC-20 with constant fee config with singature.
+    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 134; // 116 + 16 (constantFee) + 2 (mode &
+        // allowAllBundlers)
 
     /// @notice The length of the verfiying config without singature.
-    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12;
+    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 14; // 12 + 2 (mode & allowAllBundlers)
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @notice Address where all ERC-20 tokens will be sent to.
-    address public treasury;
+    /// @notice Allowlist of bundlers to use if restricting bundlers is enabled by flag
+    mapping(address bundler => bool allowed) public isBundlerAllowed;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
@@ -154,17 +177,21 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         BasePaymaster(_entryPoint, _owner)
         MultiSigner(_signers)
-    {
-        treasury = _owner;
-    }
+    { }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                      ADMIN FUNCTIONS                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function setTreasury(address _treasury) public onlyOwner {
-        emit TreasuryUpdated(treasury, _treasury);
-        treasury = _treasury;
+    /// @notice Add or remove multiple bundlers to/from the allowlist
+    ///
+    /// @param bundlers Array of bundler addresses
+    /// @param allowed Boolean indicating if bundlers should be allowed or not
+    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external onlyOwner {
+        for (uint256 i = 0; i < bundlers.length; i++) {
+            isBundlerAllowed[bundlers[i]] = allowed;
+            emit BundlerAllowlistUpdated(bundlers[i], allowed);
+        }
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -186,16 +213,17 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         internal
         pure
-        returns (uint8, bytes calldata)
+        returns (uint8, bool, bytes calldata)
     {
         if (_paymasterAndData.length < _paymasterDataOffset + 1) {
             revert PaymasterAndDataLengthInvalid();
         }
 
         uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));
-        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 1:];
+        bool allowAllBundlers = uint8(bytes1(_paymasterAndData[_paymasterDataOffset + 1:_paymasterDataOffset + 2])) == 1;
+        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 2:];
 
-        return (mode, paymasterConfig);
+        return (mode, allowAllBundlers, paymasterConfig);
     }
 
     /**
@@ -203,8 +231,22 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
      * @param _paymasterConfig The paymaster configuration in bytes.
      * @return ERC20PaymasterData The parsed paymaster configuration values.
      */
-    function _parseErc20Config(bytes calldata _paymasterConfig) internal pure returns (ERC20PaymasterData memory) {
-        if (_paymasterConfig.length < ERC20_PAYMASTER_DATA_LENGTH) {
+    function _parseErc20Config(
+        uint8 _mode,
+        bytes calldata _paymasterConfig
+    )
+        internal
+        pure
+        returns (ERC20PaymasterData memory)
+    {
+        if (
+            _paymasterConfig.length
+                < (
+                    _mode == ERC20_WITH_CONSTANT_FEE_MODE
+                        ? ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH
+                        : ERC20_PAYMASTER_DATA_LENGTH
+                )
+        ) {
             revert PaymasterConfigLengthInvalid();
         }
 
@@ -214,7 +256,17 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint128 postOpGas = uint128(bytes16(_paymasterConfig[32:48]));
         uint256 exchangeRate = uint256(bytes32(_paymasterConfig[48:80]));
         uint128 paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[80:96]));
-        bytes calldata signature = _paymasterConfig[96:];
+        address treasury = address(bytes20(_paymasterConfig[96:116]));
+
+        uint128 constantFee = 0;
+        bytes calldata signature;
+
+        if (_mode == ERC20_WITH_CONSTANT_FEE_MODE) {
+            constantFee = uint128(bytes16(_paymasterConfig[116:132]));
+            signature = _paymasterConfig[132:];
+        } else {
+            signature = _paymasterConfig[116:];
+        }
 
         if (token == address(0)) {
             revert TokenAddressInvalid();
@@ -233,9 +285,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
             validAfter: validAfter,
             token: token,
             exchangeRate: exchangeRate,
+            treasury: treasury,
             postOpGas: postOpGas,
             signature: signature,
-            paymasterValidationGasLimit: paymasterValidationGasLimit
+            paymasterValidationGasLimit: paymasterValidationGasLimit,
+            constantFee: constantFee
         });
 
         return config;
@@ -291,18 +345,22 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         address _token = _cfg.token;
         uint256 _exchangeRate = _cfg.exchangeRate;
         uint128 _postOpGas = _cfg.postOpGas;
+        address treasury = _cfg.treasury;
+        uint128 constantFee = _cfg.constantFee;
 
         return abi.encode(
             ERC20PostOpContext({
                 sender: _userOp.sender,
                 token: _token,
+                treasury: treasury,
                 exchangeRate: _exchangeRate,
                 postOpGas: _postOpGas,
                 userOpHash: _userOpHash,
                 maxFeePerGas: _userOp.maxFeePerGas,
                 maxPriorityFeePerGas: _userOp.maxPriorityFeePerGas,
                 preOpGasApproximation: uint256(0), // for v0.6 userOperations, we don't need this due to no penalty.
-                executionGasLimit: uint256(0)
+                executionGasLimit: uint256(0),
+                constantFee: constantFee
             })
         );
     }
@@ -327,7 +385,8 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 _exchangeRate = _cfg.exchangeRate;
         uint128 _postOpGas = _cfg.postOpGas;
         uint128 _paymasterValidationGasLimit = _cfg.paymasterValidationGasLimit;
-
+        address treasury = _cfg.treasury;
+        uint128 constantFee = _cfg.constantFee;
         // the limit we have for executing the userOp.
         uint256 executionGasLimit = _userOp.unpackCallGasLimit() + _userOp.unpackPostOpGasLimit();
 
@@ -341,13 +400,15 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
             ERC20PostOpContext({
                 sender: _userOp.sender,
                 token: _token,
+                treasury: treasury,
                 exchangeRate: _exchangeRate,
                 postOpGas: _postOpGas,
                 userOpHash: _userOpHash,
                 maxFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 maxPriorityFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 executionGasLimit: executionGasLimit,
-                preOpGasApproximation: preOpGasApproximation
+                preOpGasApproximation: preOpGasApproximation,
+                constantFee: constantFee
             })
         );
     }
@@ -357,20 +418,22 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         internal
         pure
-        returns (address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256)
+        returns (address, address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256, uint128)
     {
         ERC20PostOpContext memory ctx = abi.decode(_context, (ERC20PostOpContext));
 
         return (
             ctx.sender,
             ctx.token,
+            ctx.treasury,
             ctx.exchangeRate,
             ctx.postOpGas,
             ctx.userOpHash,
             ctx.maxFeePerGas,
             ctx.maxPriorityFeePerGas,
             ctx.preOpGasApproximation,
-            ctx.executionGasLimit
+            ctx.executionGasLimit,
+            ctx.constantFee
         );
     }
 
