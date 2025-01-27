@@ -330,7 +330,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint256(1), // exchangeRate
                 uint128(0), // paymasterValidationGasLimit
                 treasury, // treasury
-                uint256(1), // constantFee
+                uint128(1), // constantFee
                 "BYTES WITH INVALID SIGNATURE LENGTH"
             );
         }
@@ -394,7 +394,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint256(1), // exchangeRate
                 uint128(0), // paymasterValidationGasLimit
                 treasury, // treasury
-                uint256(1), // constantFee
+                uint128(1), // constantFee
                 "DummySignature"
             );
 
@@ -434,7 +434,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint256(0), // **will throw here, exchangeRate cannot be zero.**
                 uint128(0), // paymasterValidationGasLimit
                 treasury, // treasury
-                uint256(1), // constantFee
+                uint128(1), // constantFee
                 "DummySignature"
             );
 
