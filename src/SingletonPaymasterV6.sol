@@ -104,7 +104,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
-     * - constantFee (32 bytes)
+     * - constantFee (16 bytes)
      * - signature (64 or 65 bytes)
      */
     function _validatePaymasterUserOp(
@@ -215,7 +215,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             uint256 maxPriorityFeePerGas,
             ,
             ,
-            uint256 constantFee
+            uint128 constantFee
         ) = _parsePostOpContext(_context);
 
         uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(maxFeePerGas, maxPriorityFeePerGas);

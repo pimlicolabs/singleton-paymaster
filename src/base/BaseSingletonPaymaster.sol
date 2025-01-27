@@ -43,7 +43,7 @@ struct ERC20PostOpContext {
     /// @dev Estimate of the gas used before the userOp is executed.
     uint256 preOpGasApproximation;
     /// @dev A constant fee that is added to the userOp's gas cost.
-    uint256 constantFee;
+    uint128 constantFee;
 }
 
 /// @notice Hold all configs needed in ERC-20 mode.
@@ -65,7 +65,7 @@ struct ERC20PaymasterData {
     /// @dev The paymasterValidationGasLimit to be used in the postOp.
     uint128 paymasterValidationGasLimit;
     /// @dev A constant fee that is added to the userOp's gas cost.
-    uint256 constantFee;
+    uint128 constantFee;
 }
 
 /// @title BaseSingletonPaymaster
@@ -148,7 +148,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118; // 116 + 2 (mode & allowAllBundlers)
 
     /// @notice The length of the ERC-20 with constant fee config with singature.
-    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 150; // 116 + 32 (constantFee) + 2 (mode &
+    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 134; // 116 + 16 (constantFee) + 2 (mode &
         // allowAllBundlers)
 
     /// @notice The length of the verfiying config without singature.
@@ -258,12 +258,12 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint128 paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[80:96]));
         address treasury = address(bytes20(_paymasterConfig[96:116]));
 
-        uint256 constantFee = 0;
+        uint128 constantFee = 0;
         bytes calldata signature;
 
         if (_mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            constantFee = uint256(bytes32(_paymasterConfig[116:148]));
-            signature = _paymasterConfig[148:];
+            constantFee = uint128(bytes16(_paymasterConfig[116:132]));
+            signature = _paymasterConfig[132:];
         } else {
             signature = _paymasterConfig[116:];
         }
@@ -346,7 +346,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint256 _exchangeRate = _cfg.exchangeRate;
         uint128 _postOpGas = _cfg.postOpGas;
         address treasury = _cfg.treasury;
-        uint256 constantFee = _cfg.constantFee;
+        uint128 constantFee = _cfg.constantFee;
 
         return abi.encode(
             ERC20PostOpContext({
@@ -386,7 +386,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint128 _postOpGas = _cfg.postOpGas;
         uint128 _paymasterValidationGasLimit = _cfg.paymasterValidationGasLimit;
         address treasury = _cfg.treasury;
-        uint256 constantFee = _cfg.constantFee;
+        uint128 constantFee = _cfg.constantFee;
         // the limit we have for executing the userOp.
         uint256 executionGasLimit = _userOp.unpackCallGasLimit() + _userOp.unpackPostOpGasLimit();
 
@@ -418,7 +418,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     )
         internal
         pure
-        returns (address, address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256, uint256)
+        returns (address, address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256, uint128)
     {
         ERC20PostOpContext memory ctx = abi.decode(_context, (ERC20PostOpContext));
 

@@ -47,7 +47,7 @@ contract SingletonPaymasterV6Test is Test {
     uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118; // 116 + 2 (mode & allowAllBundlers)
 
     /// @notice The length of the ERC-20 with constant fee config with singature.
-    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 150; // 116 + 32 (constantFee) + 2 (mode &
+    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 134; // 116 + 16 (constantFee) + 2 (mode &
         // allowAllBundlers)
 
     /// @notice The length of the verfiying config without singature.
@@ -596,7 +596,7 @@ contract SingletonPaymasterV6Test is Test {
         uint256 exchangeRate = bound(_exchangeRate, 1e6, 1e20);
         uint256 maxFeePerGas = bound(_maxFeePerGas, 0.01 gwei, 5000 gwei);
         uint256 maxPriorityFeePerGas = bound(_maxPriorityFeePerGas, 0.01 gwei, 5000 gwei);
-        uint256 constantFee = bound(_constantFee, 0, 1000);
+        uint128 constantFee = uint128(bound(_constantFee, 0, 1000));
 
         vm.assume(maxFeePerGas >= maxPriorityFeePerGas);
 
@@ -622,7 +622,7 @@ contract SingletonPaymasterV6Test is Test {
                 maxPriorityFeePerGas: maxPriorityFeePerGas,
                 executionGasLimit: uint256(0),
                 preOpGasApproximation: uint256(0),
-                constantFee: mode == ERC20_WITH_CONSTANT_FEE_MODE ? constantFee : uint256(0)
+                constantFee: mode == ERC20_WITH_CONSTANT_FEE_MODE ? constantFee : uint128(0)
             })
         );
 
@@ -857,7 +857,7 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         if (mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            uint256 constantFee = 1;
+            uint128 constantFee = 1;
             userOp.paymasterAndData = abi.encodePacked(
                 data.paymasterAddress,
                 mode,
@@ -886,14 +886,16 @@ contract SingletonPaymasterV6Test is Test {
             );
         }
 
-        uint256 expectedLength = mode == ERC20_WITH_CONSTANT_FEE_MODE ? (150 + 20) : (118 + 20);
+        uint256 expectedLength = mode == ERC20_WITH_CONSTANT_FEE_MODE
+            ? (ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH + 20)
+            : (ERC20_PAYMASTER_DATA_LENGTH + 20);
         assertEq(userOp.paymasterAndData.length, expectedLength, "Invalid paymasterAndData length");
 
         bytes32 hash = paymaster.getHash(mode, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
         if (mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            uint256 constantFee = 1;
+            uint128 constantFee = 1;
             return abi.encodePacked(
                 data.paymasterAddress,
                 mode,

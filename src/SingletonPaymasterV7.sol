@@ -125,7 +125,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
-     * - constantFee (32 bytes)
+     * - constantFee (16 bytes)
      * - signature (64 or 65 bytes)
      */
     function _validatePaymasterUserOp(
@@ -270,7 +270,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             ,
             uint256 preOpGasApproximation,
             uint256 executionGasLimit,
-            uint256 constantFee
+            uint128 constantFee
         ) = _parsePostOpContext(_context);
 
         uint256 expectedPenaltyGasCost = _expectedPenaltyGasCost(
