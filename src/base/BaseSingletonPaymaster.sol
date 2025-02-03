@@ -93,12 +93,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /// @notice The paymaster data length is invalid for the selected mode.
     error PaymasterConfigLengthInvalid();
 
-    /// @notice The paymaster data length is invalid for constantFeePresent.
-    error PaymasterConfigLengthInvalidForConstantFeePresent();
-
-    /// @notice The paymaster data length is invalid for recipientPresent.
-    error PaymasterConfigLengthInvalidForRecipientPresent();
-
     /// @notice The paymaster signature length is invalid.
     error PaymasterSignatureLengthInvalid();
 
@@ -115,9 +109,6 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /// @dev We need to throw with params due to this bug in EntryPoint v0.6:
     /// https://github.com/eth-infinitism/account-abstraction/pull/293
     error PostOpTransferFromFailed(string msg);
-
-    /// @notice The payment failed due to the TransferToRecipient call in the PostOp reverting.
-    error PostOpTransferToRecipientFailed(string msg);
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -281,7 +272,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         config.constantFee = uint128(0);
         if (constantFeePresent) {
             if (_paymasterConfig.length < configPointer + 16) {
-                revert PaymasterConfigLengthInvalidForConstantFeePresent();
+                revert PaymasterConfigLengthInvalid();
             }
 
             config.constantFee = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16 bytes
@@ -291,7 +282,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         config.recipient = address(0);
         if (recipientPresent) {
             if (_paymasterConfig.length < configPointer + 20) {
-                revert PaymasterConfigLengthInvalidForRecipientPresent();
+                revert PaymasterConfigLengthInvalid();
             }
 
             config.recipient = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes

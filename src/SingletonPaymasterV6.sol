@@ -225,27 +225,15 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     }
 
     function _transferRecipient(address _token, address _sender, address _recipient, uint256 _costInToken) internal {
+        // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
+        // it will revert the whole bundle instead of just force failing the userOperation.
+        // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
+        // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
         bool success = SafeTransferLib.trySafeTransferFrom(_token, _sender, _recipient, _costInToken);
 
         if (!success) {
-            revert PostOpTransferToRecipientFailed("TRANSFER_FROM_FAILED");
+            revert PostOpTransferFromFailed("TRANSFER_TO_RECIPIENT_FAILED");
         }
-    }
-
-    function _getCostInToken(
-        uint256 _maxFeePerGas,
-        uint256 _maxPriorityFeePerGas,
-        uint256 _actualGasCost,
-        uint256 _postOpGas,
-        uint256 _exchangeRate
-    )
-        internal
-        view
-        returns (uint256)
-    {
-        uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(_maxFeePerGas, _maxPriorityFeePerGas);
-
-        return getCostInToken(_actualGasCost / actualUserOpFeePerGas, _postOpGas, actualUserOpFeePerGas, _exchangeRate);
     }
 
     /**

@@ -432,6 +432,122 @@ contract SingletonPaymasterV7Test is Test {
             )
         );
         submitUserOp(op);
+
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(0), uint8(1));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(0));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(1));
+    }
+
+    function test_RevertWhen_PaymasterAndDataLengthInvalid(uint8 constantFeePresent, uint8 recipientPresent) internal {
+        PackedUserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster), // paymaster
+            uint128(100_000), // paymaster verification gas
+            uint128(50_000), // paymaster postop gas
+            ERC20_MODE, // mode
+            ALLOW_ALL_BUNDLERS,
+            constantFeePresent,
+            recipientPresent,
+            uint48(0), // validUntil
+            int48(0), // validAfter
+            address(token), // token
+            uint128(1), // postOpGas
+            uint256(1) // exchangeRate
+        );
+
+        // split into 2 parts to avoid stack too deep
+        op.paymasterAndData = abi.encodePacked(
+            op.paymasterAndData,
+            uint128(0), // paymasterValidationGasLimit
+            treasury // treasury
+        );
+
+        // Skip adding constantFee so that the length is invalid
+        // if (constantFeePresent == 1) {
+        // op.paymasterAndData = abi.encodePacked(
+        //     op.paymasterAndData,
+        //     uint128(1) // constantFee
+        // );
+        // }
+
+        // Skip adding recipient so that the length is invalid
+        // if (recipientPresent == 1) {
+        // op.paymasterAndData = abi.encodePacked(
+        //     op.paymasterAndData,
+        //     recipient // recipient
+        // );
+        // }
+
+        // skip adding signature so that the length is invalid
+        // op.paymasterAndData = abi.encodePacked(op.paymasterAndData, "DummySignature");
+
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEntryPoint.FailedOpWithRevert.selector,
+                uint256(0),
+                "AA33 reverted",
+                abi.encodeWithSelector(BaseSingletonPaymaster.PaymasterConfigLengthInvalid.selector)
+            )
+        );
+        submitUserOp(op);
+    }
+
+    function test_RevertWhen_InvalidRecipient(uint8 _constantFeePresent) external {
+        uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
+        uint8 recipientPresent = uint8(1);
+
+        PackedUserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster), // paymaster
+            uint128(100_000), // paymaster verification gas
+            uint128(50_000), // paymaster postop gas
+            ERC20_MODE, // mode
+            ALLOW_ALL_BUNDLERS,
+            constantFeePresent,
+            recipientPresent,
+            uint48(0), // validUntil
+            int48(0), // validAfter
+            address(token), // token
+            uint128(1), // postOpGas
+            uint256(1) // exchangeRate
+        );
+
+        // split into 2 parts to avoid stack too deep
+        op.paymasterAndData = abi.encodePacked(
+            op.paymasterAndData,
+            uint128(0), // paymasterValidationGasLimit
+            treasury // treasury
+        );
+
+        if (constantFeePresent == 1) {
+            op.paymasterAndData = abi.encodePacked(
+                op.paymasterAndData,
+                uint128(1) // constantFee
+            );
+        }
+
+        if (recipientPresent == 1) {
+            op.paymasterAndData = abi.encodePacked(
+                op.paymasterAndData,
+                address(0) // recipient is invalid and it should revert
+            );
+        }
+
+        op.paymasterAndData = abi.encodePacked(op.paymasterAndData, "DummySignature");
+
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IEntryPoint.FailedOpWithRevert.selector,
+                uint256(0),
+                "AA33 reverted",
+                abi.encodeWithSelector(BaseSingletonPaymaster.RecipientInvalid.selector)
+            )
+        );
+        submitUserOp(op);
     }
 
     function test_RevertWhen_PostOpTransferFromFailed(uint8 _constantFeePresent, uint8 _recipientPresent) external {

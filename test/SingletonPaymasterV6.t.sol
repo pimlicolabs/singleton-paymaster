@@ -103,7 +103,7 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function testERC20Success() external {
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         // treasury should have no tokens
         assertEq(token.balanceOf(treasury), 0);
@@ -126,7 +126,7 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function testERC20WithConstantFeeSuccess() external {
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         // treasury should have no tokens
         assertEq(token.balanceOf(treasury), 0);
@@ -201,7 +201,7 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function testERC20LegacySuccess() external {
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
         UserOperation memory op = fillUserOp();
@@ -221,7 +221,7 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function testERC20WithConstantFeeLegacySuccess() external {
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
         UserOperation memory op = fillUserOp();
@@ -253,7 +253,7 @@ contract SingletonPaymasterV6Test is Test {
 
     function test_RevertWhen_PaymasterConfigLengthInvalid(uint8 _mode, bytes calldata _randomBytes) external {
         uint8 mode = uint8(bound(_mode, 0, 1));
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         if (mode == VERIFYING_MODE) {
             vm.assume(_randomBytes.length < 12);
@@ -283,7 +283,7 @@ contract SingletonPaymasterV6Test is Test {
         uint8 mode = uint8(bound(_mode, 0, 1));
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         UserOperation memory op = fillUserOp();
 
@@ -367,7 +367,7 @@ contract SingletonPaymasterV6Test is Test {
     function test_RevertWhen_TokenAddressInvalid(uint8 _constantFeePresent, uint8 _recipientPresent) external {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         UserOperation memory op = fillUserOp();
 
@@ -458,6 +458,104 @@ contract SingletonPaymasterV6Test is Test {
 
         vm.expectRevert();
         submitUserOp(op);
+
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(0), uint8(1));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(0));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(1));
+    }
+
+    function test_RevertWhen_PaymasterAndDataLengthInvalid(uint8 constantFeePresent, uint8 recipientPresent) internal {
+        UserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster), // paymaster
+            ERC20_MODE, // mode
+            ALLOW_ALL_BUNDLERS,
+            constantFeePresent,
+            recipientPresent,
+            uint48(0), // validUntil
+            int48(0), // validAfter
+            address(token), // token
+            uint128(1), // postOpGas
+            uint256(1) // exchangeRate
+        );
+
+        // split into 2 parts to avoid stack too deep
+        op.paymasterAndData = abi.encodePacked(
+            op.paymasterAndData,
+            uint128(0), // paymasterValidationGasLimit
+            treasury // treasury
+        );
+
+        // Skip adding constantFee so that the length is invalid
+        // if (constantFeePresent == 1) {
+        // op.paymasterAndData = abi.encodePacked(
+        //     op.paymasterAndData,
+        //     uint128(1) // constantFee
+        // );
+        // }
+
+        // Skip adding recipient so that the length is invalid
+        // if (recipientPresent == 1) {
+        // op.paymasterAndData = abi.encodePacked(
+        //     op.paymasterAndData,
+        //     recipient // recipient
+        // );
+        // }
+
+        // skip adding signature so that the length is invalid
+        // op.paymasterAndData = abi.encodePacked(op.paymasterAndData, "DummySignature");
+
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
+        submitUserOp(op);
+    }
+
+    function test_RevertWhen_InvalidRecipient(uint8 _constantFeePresent) external {
+        uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
+        uint8 recipientPresent = uint8(1);
+
+        UserOperation memory op = fillUserOp();
+
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster), // paymaster
+            ERC20_MODE, // mode
+            ALLOW_ALL_BUNDLERS,
+            constantFeePresent,
+            recipientPresent,
+            uint48(0), // validUntil
+            int48(0), // validAfter
+            address(token), // token
+            uint128(1), // postOpGas
+            uint256(1) // exchangeRate
+        );
+
+        // split into 2 parts to avoid stack too deep
+        op.paymasterAndData = abi.encodePacked(
+            op.paymasterAndData,
+            uint128(0), // paymasterValidationGasLimit
+            treasury // treasury
+        );
+
+        if (constantFeePresent == 1) {
+            op.paymasterAndData = abi.encodePacked(
+                op.paymasterAndData,
+                uint128(1) // constantFee
+            );
+        }
+
+        if (recipientPresent == 1) {
+            op.paymasterAndData = abi.encodePacked(
+                op.paymasterAndData,
+                address(0) // recipient is invalid and it should revert
+            );
+        }
+
+        op.paymasterAndData = abi.encodePacked(op.paymasterAndData, "DummySignature");
+
+        op.signature = signUserOp(op, userKey);
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
+        submitUserOp(op);
     }
 
     function test_RevertWhen_NonEntryPointCaller() external {
@@ -474,8 +572,64 @@ contract SingletonPaymasterV6Test is Test {
         paymaster.validatePaymasterUserOp(op, opHash, 0);
     }
 
+    function test_RevertWhen_RecipientTransferFailed() external {
+        vm.assertEq(0, token.balanceOf(recipient));
+        vm.assertEq(0, token.balanceOf(treasury));
+
+        uint128 postOpGas = 50_000;
+        uint256 userOperationGasUsed = 1_000_000;
+        uint256 exchangeRate = 1e10;
+        uint256 maxFeePerGas = 10 gwei;
+        uint256 maxPriorityFeePerGas = 10 gwei;
+
+        vm.assume(maxFeePerGas >= maxPriorityFeePerGas);
+
+        uint256 actualUserOpFeePerGas;
+        if (maxFeePerGas == maxPriorityFeePerGas) {
+            // chains that only support legacy (pre EIP-1559 transactions)
+            actualUserOpFeePerGas = maxFeePerGas;
+        } else {
+            actualUserOpFeePerGas = Math.min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
+        }
+
+        uint256 actualGasCost = userOperationGasUsed * actualUserOpFeePerGas;
+
+        uint256 expectedCostInToken =
+            paymaster.getCostInToken(userOperationGasUsed, postOpGas, actualUserOpFeePerGas, exchangeRate);
+
+        setupERC20Environment(expectedCostInToken);
+
+        uint256 preFund = actualGasCost * 5;
+
+        bytes memory context = abi.encode(
+            ERC20PostOpContext({
+                sender: address(account),
+                token: address(token),
+                treasury: address(treasury),
+                exchangeRate: exchangeRate,
+                postOpGas: postOpGas,
+                userOpHash: 0x0000000000000000000000000000000000000000000000000000000000000000,
+                maxFeePerGas: maxFeePerGas,
+                maxPriorityFeePerGas: maxPriorityFeePerGas,
+                preFund: preFund,
+                executionGasLimit: uint256(0),
+                preOpGasApproximation: uint256(0),
+                constantFee: uint128(0),
+                recipient: recipient
+            })
+        );
+
+        vm.prank(address(entryPoint));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                BaseSingletonPaymaster.PostOpTransferFromFailed.selector, "TRANSFER_TO_RECIPIENT_FAILED"
+            )
+        );
+        paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost);
+    }
+
     function test_RevertWhen_BundlerNotAllowed() external {
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         // treasury should have no tokens
         assertEq(token.balanceOf(paymasterOwner), 0);
@@ -492,7 +646,7 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function test_RevertWhen_OnlyBundlerAllowed() external {
-        setupERC20Environment();
+        setupERC20Environment(UINT256_MAX);
 
         // treasury should have no tokens
         assertEq(token.balanceOf(treasury), 0);
@@ -998,8 +1152,8 @@ contract SingletonPaymasterV6Test is Test {
         entryPoint.handleOps(ops, beneficiary);
     }
 
-    function setupERC20Environment() private {
+    function setupERC20Environment(uint256 approvalValue) private {
         token.sudoMint(address(account), 1000e18);
-        token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
+        token.sudoApprove(address(account), address(paymaster), approvalValue);
     }
 }
