@@ -84,6 +84,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * - paymaster address (20 bytes)
      * - mode (1 byte) = 1
      * - allowAllBundlers (1 byte)
+     * - constantFeePresent (1 byte)
+     * - recipientPresent (1 byte)
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - token address (20 bytes)
@@ -91,8 +93,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
-     * - constantFeePresent (1 byte)
-     * - recipientPresent (1 byte)
      * - constantFee (16 bytes - only if constantFeePresent is 1)
      * - recipient (20 bytes - only if recipientPresent is 1)
      * - signature (64 or 65 bytes)
