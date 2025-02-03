@@ -151,24 +151,14 @@ contract SingletonPaymasterV6Test is Test {
             postOpGas,
             exchangeRate,
             paymasterValidationGasLimit,
-            treasury
+            treasury,
+            uint8(0),
+            uint8(0)
         );
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(
-            data.paymasterAddress,
-            ERC20_MODE,
-            ALLOW_ALL_BUNDLERS,
-            data.validUntil,
-            data.validAfter,
-            erc20,
-            postOpGas,
-            exchangeRate,
-            paymasterValidationGasLimit,
-            treasury,
-            sig
-        );
+        return abi.encodePacked(userOp.paymasterAndData, sig);
     }
 
     function getSignature(bytes32 hash, uint256 signingKey) private pure returns (bytes memory) {

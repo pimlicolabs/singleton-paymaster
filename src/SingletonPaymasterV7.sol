@@ -103,6 +103,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - paymaster postop gas (16 bytes)
      * - mode (1 byte) = 1
      * - allowAllBundlers (1 byte)
+     * - constantFeePresent (1 byte)
+     * - recipientPresent (1 byte)
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - token address (20 bytes)
@@ -110,23 +112,11 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
+     * - constantFee (16 bytes - only if constantFeePresent is 1)
+     * - recipient (20 bytes - only if recipientPresent is 1)
      * - signature (64 or 65 bytes)
      *
-     * @dev paymasterAndData for mode 2:
-     * - paymaster address (20 bytes)
-     * - paymaster verification gas (16 bytes)
-     * - paymaster postop gas (16 bytes)
-     * - mode (1 byte) = 2
-     * - allowAllBundlers (1 byte)
-     * - validUntil (6 bytes)
-     * - validAfter (6 bytes)
-     * - token address (20 bytes)
-     * - postOpGas (16 bytes)
-     * - exchangeRate (32 bytes)
-     * - paymasterValidationGasLimit (16 bytes)
-     * - treasury (20 bytes)
-     * - constantFee (16 bytes)
-     * - signature (64 or 65 bytes)
+     *
      */
     function _validatePaymasterUserOp(
         PackedUserOperation calldata _userOp,
@@ -143,7 +133,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             revert BundlerNotAllowed(tx.origin);
         }
 
-        if (mode != ERC20_MODE && mode != VERIFYING_MODE && mode != ERC20_WITH_CONSTANT_FEE_MODE) {
+        if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
             revert PaymasterModeInvalid();
         }
 
@@ -154,7 +144,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        if (mode == ERC20_MODE || mode == ERC20_WITH_CONSTANT_FEE_MODE) {
+        if (mode == ERC20_MODE) {
             (context, validationData) = _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash);
         }
 
@@ -205,7 +195,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         view
         returns (bytes memory, uint256)
     {
-        ERC20PaymasterData memory cfg = _parseErc20Config(_mode, _paymasterConfig);
+        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_mode, _userOp));
         address recoveredSigner = ECDSA.recover(hash, cfg.signature);
@@ -228,20 +218,14 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         pure
         returns (uint256)
     {
-        uint256 actualGas = _actualGasCost / _actualUserOpFeePerGas + postOpGas;
-
-        uint256 executionGasUsed = actualGas - preOpGasApproximation;
+        uint256 executionGasUsed = _actualGasCost / _actualUserOpFeePerGas + postOpGas - preOpGasApproximation;
 
         uint256 expectedPenaltyGas = 0;
-        uint256 unusedGas = 0;
         if (executionGasLimit > executionGasUsed) {
-            unusedGas = executionGasLimit - executionGasUsed;
-            expectedPenaltyGas = (unusedGas * PENALTY_PERCENT) / 100;
+            expectedPenaltyGas = ((executionGasLimit - executionGasUsed) * PENALTY_PERCENT) / 100;
         }
 
-        uint256 expectedPenaltyGasCost = expectedPenaltyGas * _actualUserOpFeePerGas;
-
-        return expectedPenaltyGasCost;
+        return expectedPenaltyGas * _actualUserOpFeePerGas;
     }
 
     /**
@@ -259,37 +243,25 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     )
         internal
     {
-        (
-            address sender,
-            address token,
-            address treasury,
-            uint256 exchangeRate,
-            uint128 postOpGas,
-            bytes32 userOpHash,
-            ,
-            ,
-            uint256 preOpGasApproximation,
-            uint256 executionGasLimit,
-            uint128 constantFee
-        ) = _parsePostOpContext(_context);
+        ERC20PostOpContext memory ctx = _parsePostOpContext(_context);
 
         uint256 expectedPenaltyGasCost = _expectedPenaltyGasCost(
-            _actualGasCost, _actualUserOpFeePerGas, postOpGas, preOpGasApproximation, executionGasLimit
+            _actualGasCost, _actualUserOpFeePerGas, ctx.postOpGas, ctx.preOpGasApproximation, ctx.executionGasLimit
         );
 
         uint256 actualGasCost = _actualGasCost + expectedPenaltyGasCost;
 
-        uint256 costInToken = getCostInToken(actualGasCost, postOpGas, _actualUserOpFeePerGas, exchangeRate);
+        uint256 costInToken =
+            getCostInToken(actualGasCost, ctx.postOpGas, _actualUserOpFeePerGas, ctx.exchangeRate) + ctx.constantFee;
 
-        SafeTransferLib.safeTransferFrom(token, sender, treasury, costInToken + constantFee);
-        emit UserOperationSponsored(
-            userOpHash,
-            sender,
-            constantFee > 0 ? ERC20_WITH_CONSTANT_FEE_MODE : ERC20_MODE,
-            token,
-            costInToken,
-            exchangeRate
-        );
+        SafeTransferLib.safeTransferFrom(ctx.token, ctx.sender, ctx.treasury, costInToken);
+        uint256 preFundInToken = ctx.preFund * ctx.exchangeRate / 1e18;
+
+        if (ctx.recipient != address(0) && preFundInToken > costInToken) {
+            SafeTransferLib.safeTransferFrom(ctx.token, ctx.sender, ctx.recipient, preFundInToken - costInToken);
+        }
+
+        emit UserOperationSponsored(ctx.userOpHash, ctx.sender, ERC20_MODE, ctx.token, costInToken, ctx.exchangeRate);
     }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
@@ -304,11 +276,37 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      */
     function getHash(uint8 _mode, PackedUserOperation calldata _userOp) public view returns (bytes32) {
         if (_mode == VERIFYING_MODE) {
-            return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH);
-        } else if (_mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            return _getHash(_userOp, ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH);
+            return _getHash(_userOp, MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + VERIFYING_PAYMASTER_DATA_LENGTH);
         } else {
-            return _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH);
+            uint8 paymasterDataLength = MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + ERC20_PAYMASTER_DATA_LENGTH; // include
+                // mode and
+                // allowAllBundlers
+            uint8 constantFeePresent = uint8(
+                bytes1(
+                    _userOp.paymasterAndData[
+                        PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH:
+                            PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + 1
+                    ]
+                )
+            );
+            uint8 recipientPresent = uint8(
+                bytes1(
+                    _userOp.paymasterAndData[
+                        PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + 1:
+                            PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + 2
+                    ]
+                )
+            );
+
+            if (constantFeePresent == 1) {
+                paymasterDataLength += 16;
+            }
+
+            if (recipientPresent == 1) {
+                paymasterDataLength += 20;
+            }
+
+            return _getHash(_userOp, paymasterDataLength);
         }
     }
 
