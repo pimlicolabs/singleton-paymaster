@@ -74,16 +74,15 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      *
      * @dev paymasterAndData for mode 0:
      * - paymaster address (20 bytes)
-     * - mode (1 byte) = 0
-     * - allowAllBundlers (1 byte)
+     * - mode and allowAllBundlers (1 byte) - lowest bit represents allowAllBundlers, rest of the bits represent mode
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - signature (64 or 65 bytes)
      *
      * @dev paymasterAndData for mode 1:
      * - paymaster address (20 bytes)
-     * - mode (1 byte) = 1
-     * - allowAllBundlers (1 byte)
+     * - mode and allowAllBundlers (1 byte) - lowest bit represents allowAllBundlers, rest of the bits represent mode
+     * - constantFeePresent and recipientPresent (1 byte) - 000000{recipientPresent bit}{constantFeePresent bit}
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - token address (20 bytes)
@@ -91,21 +90,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
+     * - constantFee (16 bytes - only if constantFeePresent is 1)
+     * - recipient (20 bytes - only if recipientPresent is 1)
      * - signature (64 or 65 bytes)
      *
-     * @dev paymasterAndData for mode 2:
-     * - paymaster address (20 bytes)
-     * - mode (1 byte) = 2
-     * - allowAllBundlers (1 byte)
-     * - validUntil (6 bytes)
-     * - validAfter (6 bytes)
-     * - token address (20 bytes)
-     * - postOpGas (16 bytes)
-     * - exchangeRate (32 bytes)
-     * - paymasterValidationGasLimit (16 bytes)
-     * - treasury (20 bytes)
-     * - constantFee (16 bytes)
-     * - signature (64 or 65 bytes)
      */
     function _validatePaymasterUserOp(
         UserOperation calldata _userOp,
@@ -122,7 +110,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             revert BundlerNotAllowed(tx.origin);
         }
 
-        if (mode != ERC20_MODE && mode != VERIFYING_MODE && mode != ERC20_WITH_CONSTANT_FEE_MODE) {
+        if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
             revert PaymasterModeInvalid();
         }
 
@@ -133,8 +121,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
         }
 
-        if (mode == ERC20_MODE || mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            (context, validationData) = _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash);
+        if (mode == ERC20_MODE) {
+            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
         }
 
         return (context, validationData);
@@ -175,7 +163,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @return (context, validationData) The validation data to return to the EntryPoint.
      */
     function _validateERC20Mode(
-        uint8 _mode,
         UserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash
@@ -184,9 +171,9 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         view
         returns (bytes memory, uint256)
     {
-        ERC20PaymasterData memory cfg = _parseErc20Config(_mode, _paymasterConfig);
+        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
 
-        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_mode, _userOp));
+        bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(ERC20_MODE, _userOp));
         address recoveredSigner = ECDSA.recover(hash, cfg.signature);
 
         bool isSignatureValid = signers[recoveredSigner];
@@ -204,44 +191,45 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @param _actualGasCost The total gas cost (in wei) of this userOperation.
      */
     function _postOp(PostOpMode _postOpMode, bytes calldata _context, uint256 _actualGasCost) internal {
-        (
-            address sender,
-            address token,
-            address treasury,
-            uint256 exchangeRate,
-            uint128 postOpGas,
-            bytes32 userOpHash,
-            uint256 maxFeePerGas,
-            uint256 maxPriorityFeePerGas,
-            ,
-            ,
-            uint128 constantFee
-        ) = _parsePostOpContext(_context);
+        if (_postOpMode == PostOpMode.postOpReverted) {
+            return;
+        }
 
-        uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(maxFeePerGas, maxPriorityFeePerGas);
+        ERC20PostOpContext memory ctx = _parsePostOpContext(_context);
 
-        uint256 costInToken =
-            getCostInToken(_actualGasCost / actualUserOpFeePerGas, postOpGas, actualUserOpFeePerGas, exchangeRate);
+        uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(ctx.maxFeePerGas, ctx.maxPriorityFeePerGas);
 
-        if (_postOpMode != PostOpMode.postOpReverted) {
-            // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
-            // it will revert the whole bundle instead of just force failing the userOperation.
-            // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
-            // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
-            bool success = SafeTransferLib.trySafeTransferFrom(token, sender, treasury, costInToken + constantFee);
+        uint256 costInToken = getCostInToken(
+            _actualGasCost / actualUserOpFeePerGas, ctx.postOpGas, actualUserOpFeePerGas, ctx.exchangeRate
+        ) + ctx.constantFee;
 
-            if (!success) {
-                revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
-            }
+        // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
+        // it will revert the whole bundle instead of just force failing the userOperation.
+        // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
+        // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
+        bool success = SafeTransferLib.trySafeTransferFrom(ctx.token, ctx.sender, ctx.treasury, costInToken);
 
-            emit UserOperationSponsored(
-                userOpHash,
-                sender,
-                constantFee > 0 ? ERC20_WITH_CONSTANT_FEE_MODE : ERC20_MODE,
-                token,
-                costInToken,
-                exchangeRate
-            );
+        if (!success) {
+            revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
+        }
+
+        uint256 preFundInToken = ctx.preFund * ctx.exchangeRate / 1e18;
+        if (ctx.recipient != address(0) && preFundInToken > costInToken) {
+            _transferRecipient(ctx.token, ctx.sender, ctx.recipient, preFundInToken - costInToken);
+        }
+
+        emit UserOperationSponsored(ctx.userOpHash, ctx.sender, ERC20_MODE, ctx.token, costInToken, ctx.exchangeRate);
+    }
+
+    function _transferRecipient(address _token, address _sender, address _recipient, uint256 _costInToken) internal {
+        // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
+        // it will revert the whole bundle instead of just force failing the userOperation.
+        // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
+        // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
+        bool success = SafeTransferLib.trySafeTransferFrom(_token, _sender, _recipient, _costInToken);
+
+        if (!success) {
+            revert PostOpTransferFromFailed("TRANSFER_TO_RECIPIENT_FAILED");
         }
     }
 
@@ -273,17 +261,32 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
     /**
      * @notice Hashses the userOperation data when used in verifying mode.
-     * @param _userOp The user operation data.
      * @param _mode The mode that we want to get the hash for.
+     * @param _userOp The user operation data.
      * @return bytes32 The hash that the signer should sign over.
      */
     function getHash(uint8 _mode, UserOperation calldata _userOp) public view returns (bytes32) {
         if (_mode == VERIFYING_MODE) {
-            return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH);
-        } else if (_mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            return _getHash(_userOp, ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH);
+            return _getHash(_userOp, VERIFYING_PAYMASTER_DATA_LENGTH + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH);
         } else {
-            return _getHash(_userOp, ERC20_PAYMASTER_DATA_LENGTH);
+            uint8 paymasterDataLength = ERC20_PAYMASTER_DATA_LENGTH + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH;
+
+            uint8 combinedByte =
+                uint8(_userOp.paymasterAndData[PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH]);
+            // constantFeePresent is in the *lowest* bit
+            bool constantFeePresent = (combinedByte & 0x01) != 0;
+            // recipientPresent is in the second lowest bit
+            bool recipientPresent = (combinedByte & 0x02) != 0;
+
+            if (constantFeePresent) {
+                paymasterDataLength += 16;
+            }
+
+            if (recipientPresent) {
+                paymasterDataLength += 20;
+            }
+
+            return _getHash(_userOp, paymasterDataLength);
         }
     }
 

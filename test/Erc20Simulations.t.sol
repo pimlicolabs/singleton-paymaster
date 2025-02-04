@@ -118,14 +118,16 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         // set paymasterAndData here so that correct hash is calculated.
-        userOp.paymasterAndData =
-            abi.encodePacked(address(paymaster), VERIFYING_MODE, ALLOW_ALL_BUNDLERS, data.validUntil, data.validAfter);
+        userOp.paymasterAndData = abi.encodePacked(
+            address(paymaster),
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (VERIFYING_MODE << 1)),
+            data.validUntil,
+            data.validAfter
+        );
         bytes32 hash = paymaster.getHash(VERIFYING_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(
-            data.paymasterAddress, VERIFYING_MODE, ALLOW_ALL_BUNDLERS, data.validUntil, data.validAfter, sig
-        );
+        return abi.encodePacked(userOp.paymasterAndData, sig);
     }
 
     function getERC20ModeData(
@@ -141,10 +143,13 @@ contract SingletonPaymasterV6Test is Test {
         view
         returns (bytes memory)
     {
+        uint8 constantFeePresent = uint8(0);
+        uint8 recipientPresent = uint8(0);
+
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
-            ERC20_MODE,
-            ALLOW_ALL_BUNDLERS,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             data.validUntil,
             data.validAfter,
             erc20,
@@ -156,19 +161,7 @@ contract SingletonPaymasterV6Test is Test {
         bytes32 hash = paymaster.getHash(ERC20_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(
-            data.paymasterAddress,
-            ERC20_MODE,
-            ALLOW_ALL_BUNDLERS,
-            data.validUntil,
-            data.validAfter,
-            erc20,
-            postOpGas,
-            exchangeRate,
-            paymasterValidationGasLimit,
-            treasury,
-            sig
-        );
+        return abi.encodePacked(userOp.paymasterAndData, sig);
     }
 
     function getSignature(bytes32 hash, uint256 signingKey) private pure returns (bytes memory) {

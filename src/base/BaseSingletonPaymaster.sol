@@ -38,12 +38,16 @@ struct ERC20PostOpContext {
     uint256 maxFeePerGas;
     /// @dev The userOperation's maxPriorityFeePerGas (v0.6 only)
     uint256 maxPriorityFeePerGas;
+    /// @dev The pre fund of the userOperation.
+    uint256 preFund;
     /// @dev The total allowed execution gas limit, i.e the sum of the callGasLimit and postOpGasLimit.
     uint256 executionGasLimit;
     /// @dev Estimate of the gas used before the userOp is executed.
     uint256 preOpGasApproximation;
     /// @dev A constant fee that is added to the userOp's gas cost.
     uint128 constantFee;
+    /// @dev The recipient of the tokens.
+    address recipient;
 }
 
 /// @notice Hold all configs needed in ERC-20 mode.
@@ -66,6 +70,8 @@ struct ERC20PaymasterData {
     uint128 paymasterValidationGasLimit;
     /// @dev A constant fee that is added to the userOp's gas cost.
     uint128 constantFee;
+    /// @dev The recipient of the tokens.
+    address recipient;
 }
 
 /// @title BaseSingletonPaymaster
@@ -95,6 +101,9 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
 
     /// @notice The token exchange rate is invalid.
     error ExchangeRateInvalid();
+
+    /// @notice The recipient is invalid.
+    error RecipientInvalid();
 
     /// @notice The payment failed due to the TransferFrom call in the PostOp reverting.
     /// @dev We need to throw with params due to this bug in EntryPoint v0.6:
@@ -141,18 +150,14 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /// @notice Mode indicating that the Paymaster is in ERC-20 mode.
     uint8 immutable ERC20_MODE = 1;
 
-    /// @notice Mode indicating that the Paymaster is in ERC-20 mode with a constant fee.
-    uint8 immutable ERC20_WITH_CONSTANT_FEE_MODE = 2;
+    /// @notice The length of the mode and allowAllBundlers bytes.
+    uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
 
     /// @notice The length of the ERC-20 config without singature.
-    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118; // 116 + 2 (mode & allowAllBundlers)
-
-    /// @notice The length of the ERC-20 with constant fee config with singature.
-    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 134; // 116 + 16 (constantFee) + 2 (mode &
-        // allowAllBundlers)
+    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
 
     /// @notice The length of the verfiying config without singature.
-    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 14; // 12 + 2 (mode & allowAllBundlers)
+    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -219,9 +224,13 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
             revert PaymasterAndDataLengthInvalid();
         }
 
-        uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));
-        bool allowAllBundlers = uint8(bytes1(_paymasterAndData[_paymasterDataOffset + 1:_paymasterDataOffset + 2])) == 1;
-        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 2:];
+        uint8 combinedByte = uint8(_paymasterAndData[_paymasterDataOffset]);
+        // allowAllBundlers is in the *lowest* bit
+        bool allowAllBundlers = (combinedByte & 0x01) != 0;
+        // rest of the bits represent the mode
+        uint8 mode = uint8((combinedByte >> 1));
+
+        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 1:];
 
         return (mode, allowAllBundlers, paymasterConfig);
     }
@@ -229,68 +238,80 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     /**
      * @notice Parses the paymaster configuration when used in ERC-20 mode.
      * @param _paymasterConfig The paymaster configuration in bytes.
-     * @return ERC20PaymasterData The parsed paymaster configuration values.
+     * @return config The parsed paymaster configuration values.
      */
     function _parseErc20Config(
-        uint8 _mode,
         bytes calldata _paymasterConfig
     )
         internal
         pure
-        returns (ERC20PaymasterData memory)
+        returns (ERC20PaymasterData memory config)
     {
-        if (
-            _paymasterConfig.length
-                < (
-                    _mode == ERC20_WITH_CONSTANT_FEE_MODE
-                        ? ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH
-                        : ERC20_PAYMASTER_DATA_LENGTH
-                )
-        ) {
+        if (_paymasterConfig.length < ERC20_PAYMASTER_DATA_LENGTH) {
             revert PaymasterConfigLengthInvalid();
         }
 
-        uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
-        uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
-        address token = address(bytes20(_paymasterConfig[12:32]));
-        uint128 postOpGas = uint128(bytes16(_paymasterConfig[32:48]));
-        uint256 exchangeRate = uint256(bytes32(_paymasterConfig[48:80]));
-        uint128 paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[80:96]));
-        address treasury = address(bytes20(_paymasterConfig[96:116]));
+        uint128 configPointer = 0;
 
-        uint128 constantFee = 0;
-        bytes calldata signature;
+        uint8 combinedByte = uint8(_paymasterConfig[configPointer]);
+        // constantFeePresent is in the *lowest* bit
+        bool constantFeePresent = (combinedByte & 0x01) != 0;
+        // recipientPresent is in the second lowest bit
+        bool recipientPresent = (combinedByte & 0x02) != 0;
+        configPointer += 1;
+        config.validUntil = uint48(bytes6(_paymasterConfig[configPointer:configPointer + 6])); // 6 bytes
+        configPointer += 6;
+        config.validAfter = uint48(bytes6(_paymasterConfig[configPointer:configPointer + 6])); // 6 bytes
+        configPointer += 6;
+        config.token = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
+        configPointer += 20;
+        config.postOpGas = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16 bytes
+        configPointer += 16;
+        config.exchangeRate = uint256(bytes32(_paymasterConfig[configPointer:configPointer + 32])); // 32 bytes
+        configPointer += 32;
+        config.paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16
+            // bytes
+        configPointer += 16;
+        config.treasury = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
+        configPointer += 20;
 
-        if (_mode == ERC20_WITH_CONSTANT_FEE_MODE) {
-            constantFee = uint128(bytes16(_paymasterConfig[116:132]));
-            signature = _paymasterConfig[132:];
-        } else {
-            signature = _paymasterConfig[116:];
+        config.constantFee = uint128(0);
+        if (constantFeePresent) {
+            if (_paymasterConfig.length < configPointer + 16) {
+                revert PaymasterConfigLengthInvalid();
+            }
+
+            config.constantFee = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16 bytes
+            configPointer += 16;
         }
 
-        if (token == address(0)) {
+        config.recipient = address(0);
+        if (recipientPresent) {
+            if (_paymasterConfig.length < configPointer + 20) {
+                revert PaymasterConfigLengthInvalid();
+            }
+
+            config.recipient = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
+            configPointer += 20;
+        }
+
+        config.signature = _paymasterConfig[configPointer:];
+
+        if (config.token == address(0)) {
             revert TokenAddressInvalid();
         }
 
-        if (exchangeRate == 0) {
+        if (config.exchangeRate == 0) {
             revert ExchangeRateInvalid();
         }
 
-        if (signature.length != 64 && signature.length != 65) {
-            revert PaymasterSignatureLengthInvalid();
+        if (recipientPresent && config.recipient == address(0)) {
+            revert RecipientInvalid();
         }
 
-        ERC20PaymasterData memory config = ERC20PaymasterData({
-            validUntil: validUntil,
-            validAfter: validAfter,
-            token: token,
-            exchangeRate: exchangeRate,
-            treasury: treasury,
-            postOpGas: postOpGas,
-            signature: signature,
-            paymasterValidationGasLimit: paymasterValidationGasLimit,
-            constantFee: constantFee
-        });
+        if (config.signature.length != 64 && config.signature.length != 65) {
+            revert PaymasterSignatureLengthInvalid();
+        }
 
         return config;
     }
@@ -326,6 +347,37 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         return (validUntil, validAfter, signature);
     }
 
+    function _getRequiredPrefund(UserOperation calldata _userOp) internal pure returns (uint256 requiredPrefund) {
+        unchecked {
+            //when using a Paymaster, the verificationGasLimit is used also to as a limit for the postOp call.
+            // our security model might call postOp eventually twice
+            uint256 mul = _userOp.paymasterAndData.length >= 20 ? 3 : 1;
+            uint256 requiredGas = _userOp.callGasLimit + _userOp.verificationGasLimit * mul + _userOp.preVerificationGas;
+
+            requiredPrefund = requiredGas * _userOp.maxFeePerGas;
+        }
+    }
+
+    /**
+     * Get the required prefunded gas fee amount for an operation.
+     * @param _userOp - The user operation in calldata.
+     */
+    function _getRequiredPrefund(
+        PackedUserOperation calldata _userOp
+    )
+        internal
+        pure
+        returns (uint256 requiredPrefund)
+    {
+        unchecked {
+            uint256 requiredGas = _userOp.unpackVerificationGasLimit() + _userOp.unpackCallGasLimit()
+                + _userOp.unpackPaymasterVerificationGasLimit() + _userOp.unpackPostOpGasLimit()
+                + _userOp.preVerificationGas;
+
+            requiredPrefund = requiredGas * _userOp.unpackMaxFeePerGas();
+        }
+    }
+
     /**
      * @notice Helper function to encode the postOp context data for V6 userOperations.
      * @param _userOp The userOperation.
@@ -347,6 +399,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         uint128 _postOpGas = _cfg.postOpGas;
         address treasury = _cfg.treasury;
         uint128 constantFee = _cfg.constantFee;
+        address recipient = _cfg.recipient;
 
         return abi.encode(
             ERC20PostOpContext({
@@ -360,7 +413,9 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
                 maxPriorityFeePerGas: _userOp.maxPriorityFeePerGas,
                 preOpGasApproximation: uint256(0), // for v0.6 userOperations, we don't need this due to no penalty.
                 executionGasLimit: uint256(0),
-                constantFee: constantFee
+                preFund: _getRequiredPrefund(_userOp),
+                constantFee: constantFee,
+                recipient: recipient
             })
         );
     }
@@ -381,60 +436,39 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         pure
         returns (bytes memory)
     {
-        address _token = _cfg.token;
-        uint256 _exchangeRate = _cfg.exchangeRate;
-        uint128 _postOpGas = _cfg.postOpGas;
-        uint128 _paymasterValidationGasLimit = _cfg.paymasterValidationGasLimit;
-        address treasury = _cfg.treasury;
-        uint128 constantFee = _cfg.constantFee;
         // the limit we have for executing the userOp.
         uint256 executionGasLimit = _userOp.unpackCallGasLimit() + _userOp.unpackPostOpGasLimit();
 
         // the limit we are allowed for everything before the userOp is executed.
         uint256 preOpGasApproximation = _userOp.preVerificationGas + _userOp.unpackVerificationGasLimit() // VerificationGasLimit
             // is an overestimation.
-            + _paymasterValidationGasLimit; // paymasterValidationGasLimit has to be an under estimation to compensate for
+            + _cfg.paymasterValidationGasLimit; // paymasterValidationGasLimit has to be an under estimation to compensate
+            // for
             // the overestimation.
 
         return abi.encode(
             ERC20PostOpContext({
                 sender: _userOp.sender,
-                token: _token,
-                treasury: treasury,
-                exchangeRate: _exchangeRate,
-                postOpGas: _postOpGas,
+                token: _cfg.token,
+                treasury: _cfg.treasury,
+                exchangeRate: _cfg.exchangeRate,
+                postOpGas: _cfg.postOpGas,
                 userOpHash: _userOpHash,
                 maxFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 maxPriorityFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 executionGasLimit: executionGasLimit,
+                preFund: _getRequiredPrefund(_userOp),
                 preOpGasApproximation: preOpGasApproximation,
-                constantFee: constantFee
+                constantFee: _cfg.constantFee,
+                recipient: _cfg.recipient
             })
         );
     }
 
-    function _parsePostOpContext(
-        bytes calldata _context
-    )
-        internal
-        pure
-        returns (address, address, address, uint256, uint128, bytes32, uint256, uint256, uint256, uint256, uint128)
-    {
-        ERC20PostOpContext memory ctx = abi.decode(_context, (ERC20PostOpContext));
+    function _parsePostOpContext(bytes calldata _context) internal pure returns (ERC20PostOpContext memory ctx) {
+        ctx = abi.decode(_context, (ERC20PostOpContext));
 
-        return (
-            ctx.sender,
-            ctx.token,
-            ctx.treasury,
-            ctx.exchangeRate,
-            ctx.postOpGas,
-            ctx.userOpHash,
-            ctx.maxFeePerGas,
-            ctx.maxPriorityFeePerGas,
-            ctx.preOpGasApproximation,
-            ctx.executionGasLimit,
-            ctx.constantFee
-        );
+        return ctx;
     }
 
     /**
