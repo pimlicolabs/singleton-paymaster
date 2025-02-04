@@ -44,15 +44,11 @@ contract SingletonPaymasterV7Test is Test {
     uint128 immutable PAYMASTER_VALIDATION_GAS_LIMIT = 30_000;
     /// @notice The length of the ERC-20 config without singature.
     uint8 immutable PAYMASTER_DATA_OFFSET = 52;
-    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118;
-    uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 2;
-
-    /// @notice The length of the ERC-20 with constant fee config with singature.
-    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 134; // 116 + 16 (constantFee) + 2 (mode &
-        // allowAllBundlers)
+    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
+    uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
 
     /// @notice The length of the verfiying config without singature.
-    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12 (mode & allowAllBundlers)
+    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12;
 
     address payable beneficiary;
     address paymasterOwner;
@@ -200,10 +196,23 @@ contract SingletonPaymasterV7Test is Test {
     function test_RevertWhen_PaymasterModeInvalid(uint8 _invalidMode) external {
         vm.assume(_invalidMode != ERC20_MODE && _invalidMode != VERIFYING_MODE);
 
+        // When mode = 129 = '10000001'
+        // 1  & 0x01 | mode << 1 = 259 = '100000011'
+        // but since we have only 8 bits,
+        // '100000011' becomes '00000011'
+        // and
+        // '00000011' becomes 3 which is valid mode
+        // so we need to make sure that _invalidMode is less than 127 = '1111111'
+        vm.assume(_invalidMode < 127);
+
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData =
-            abi.encodePacked(address(paymaster), uint128(100_000), uint128(50_000), _invalidMode, ALLOW_ALL_BUNDLERS);
+        op.paymasterAndData = abi.encodePacked(
+            address(paymaster),
+            uint128(100_000),
+            uint128(50_000),
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (_invalidMode << 1))
+        );
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
             abi.encodeWithSelector(
@@ -231,7 +240,11 @@ contract SingletonPaymasterV7Test is Test {
         PackedUserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(
-            address(paymaster), uint128(100_000), uint128(50_000), mode, ALLOW_ALL_BUNDLERS, _randomBytes
+            address(paymaster),
+            uint128(100_000),
+            uint128(50_000),
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)),
+            _randomBytes
         );
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(
@@ -256,8 +269,7 @@ contract SingletonPaymasterV7Test is Test {
                 address(paymaster), // paymaster
                 uint128(100_000), // paymaster verification gas
                 uint128(50_000), // paymaster postop gas
-                mode, // mode
-                ALLOW_ALL_BUNDLERS,
+                uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)),
                 uint48(0), // validUntil
                 uint48(0), // validAfter
                 "BYTES WITH INVALID SIGNATURE LENGTH"
@@ -269,10 +281,8 @@ contract SingletonPaymasterV7Test is Test {
                 address(paymaster), // paymaster
                 uint128(100_000), // paymaster verification gas
                 uint128(50_000), // paymaster postop gas
-                mode, // mode
-                ALLOW_ALL_BUNDLERS,
-                uint8(0), // constantFeePresent
-                uint8(0), // recipientPresent
+                uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)), // mode & allowAllBundlers
+                uint8((uint8(0) & 0x01) | (uint8(0) << 1)), // constantFeePresent & recipientPresent
                 uint48(0), // validUntil
                 int48(0), // validAfter
                 address(token), // token
@@ -312,10 +322,8 @@ contract SingletonPaymasterV7Test is Test {
             address(paymaster), // paymaster
             uint128(100_000), // paymaster verification gas
             uint128(50_000), // paymaster postop gas
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS,
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(0), // token will throw here, token address cannot be zero
@@ -369,10 +377,8 @@ contract SingletonPaymasterV7Test is Test {
             address(paymaster), // paymaster
             uint128(100_000), // paymaster verification gas
             uint128(50_000), // paymaster postop gas
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS,
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -445,10 +451,8 @@ contract SingletonPaymasterV7Test is Test {
             address(paymaster), // paymaster
             uint128(100_000), // paymaster verification gas
             uint128(50_000), // paymaster postop gas
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS,
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -504,10 +508,8 @@ contract SingletonPaymasterV7Test is Test {
             address(paymaster), // paymaster
             uint128(100_000), // paymaster verification gas
             uint128(50_000), // paymaster postop gas
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS,
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -941,18 +943,10 @@ contract SingletonPaymasterV7Test is Test {
         flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(0), uint8(0));
     }
 
-    function testValidateSignatureCorrectnessWithConstantFee() external {
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(1), uint8(0));
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(1), uint8(1));
-    }
-
-    function testValidateSignatureCorrectnessWithRecipient() external {
+    function testValidateSignatureCorrectnessWithConstantFeeAndRecipient() external {
         flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(1));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(0), uint8(1));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0));
         flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(1), uint8(1));
     }
 
     // HELPERS //
@@ -1042,12 +1036,12 @@ contract SingletonPaymasterV7Test is Test {
         // check paymasterAndData
         for (uint256 byteIndex = 0; byteIndex < paymasterConfigLength; byteIndex++) {
             // we don't want to flip the mode byte and allowAllBundlers byte
-            if (byteIndex == 52 || byteIndex == 53) {
+            if (byteIndex == 52) {
                 continue;
             }
 
             // don't change constantFeePresent and recipientPresent
-            if (_mode == ERC20_MODE && (byteIndex == 54 || byteIndex == 55)) {
+            if (_mode == ERC20_MODE && byteIndex == 53) {
                 continue;
             }
 
@@ -1120,24 +1114,14 @@ contract SingletonPaymasterV7Test is Test {
             data.paymasterAddress,
             data.preVerificationGas,
             data.postOpGas,
-            VERIFYING_MODE,
-            data.allowAllBundlers,
+            uint8((data.allowAllBundlers & 0x01) | (VERIFYING_MODE << 1)),
             data.validUntil,
             data.validAfter
         );
         bytes32 hash = paymaster.getHash(VERIFYING_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(
-            data.paymasterAddress,
-            data.preVerificationGas,
-            data.postOpGas,
-            VERIFYING_MODE,
-            data.allowAllBundlers,
-            data.validUntil,
-            data.validAfter,
-            sig
-        );
+        return abi.encodePacked(userOp.paymasterAndData, sig);
     }
 
     function getERC20ModeData(
@@ -1159,10 +1143,8 @@ contract SingletonPaymasterV7Test is Test {
             data.paymasterAddress,
             data.preVerificationGas,
             data.postOpGas,
-            ERC20_MODE,
-            data.allowAllBundlers,
-            constantFeePresent,
-            recipientPresent
+            uint8((data.allowAllBundlers & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1))
         );
 
         // split into 2 parts to avoid stack too deep

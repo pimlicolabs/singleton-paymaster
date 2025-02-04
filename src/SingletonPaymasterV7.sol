@@ -91,8 +91,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - paymaster address (20 bytes)
      * - paymaster verification gas (16 bytes)
      * - paymaster postop gas (16 bytes)
-     * - mode (1 byte) = 0
-     * - allowAllBundlers (1 byte)
+     * - mode and allowAllBundlers (1 byte) - lowest bit represents allowAllBundlers, rest of the bits represent mode
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - signature (64 or 65 bytes)
@@ -101,10 +100,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - paymaster address (20 bytes)
      * - paymaster verification gas (16 bytes)
      * - paymaster postop gas (16 bytes)
-     * - mode (1 byte) = 1
-     * - allowAllBundlers (1 byte)
-     * - constantFeePresent (1 byte)
-     * - recipientPresent (1 byte)
+     * - mode and allowAllBundlers (1 byte) - lowest bit represents allowAllBundlers, rest of the bits represent mode
+     * - constantFeePresent and recipientPresent (1 byte) - 000000{recipientPresent bit}{constantFeePresent bit}
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - token address (20 bytes)
@@ -278,31 +275,20 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         if (_mode == VERIFYING_MODE) {
             return _getHash(_userOp, MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + VERIFYING_PAYMASTER_DATA_LENGTH);
         } else {
-            uint8 paymasterDataLength = MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + ERC20_PAYMASTER_DATA_LENGTH; // include
-                // mode and
-                // allowAllBundlers
-            uint8 constantFeePresent = uint8(
-                bytes1(
-                    _userOp.paymasterAndData[
-                        PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH:
-                            PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + 1
-                    ]
-                )
-            );
-            uint8 recipientPresent = uint8(
-                bytes1(
-                    _userOp.paymasterAndData[
-                        PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + 1:
-                            PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + 2
-                    ]
-                )
-            );
+            uint8 paymasterDataLength = MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + ERC20_PAYMASTER_DATA_LENGTH;
 
-            if (constantFeePresent == 1) {
+            uint8 combinedByte =
+                uint8(_userOp.paymasterAndData[PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH]);
+            // constantFeePresent is in the *lowest* bit
+            bool constantFeePresent = (combinedByte & 0x01) != 0;
+            // recipientPresent is in the second lowest bit
+            bool recipientPresent = (combinedByte & 0x02) != 0;
+
+            if (constantFeePresent) {
                 paymasterDataLength += 16;
             }
 
-            if (recipientPresent == 1) {
+            if (recipientPresent) {
                 paymasterDataLength += 20;
             }
 

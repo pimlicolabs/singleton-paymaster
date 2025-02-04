@@ -151,10 +151,10 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     uint8 immutable ERC20_MODE = 1;
 
     /// @notice The length of the mode and allowAllBundlers bytes.
-    uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 2;
+    uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
 
     /// @notice The length of the ERC-20 config without singature.
-    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118; // 118
+    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
 
     /// @notice The length of the verfiying config without singature.
     uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12
@@ -220,13 +220,17 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
         pure
         returns (uint8, bool, bytes calldata)
     {
-        if (_paymasterAndData.length < _paymasterDataOffset + 2) {
+        if (_paymasterAndData.length < _paymasterDataOffset + 1) {
             revert PaymasterAndDataLengthInvalid();
         }
 
-        uint8 mode = uint8(bytes1(_paymasterAndData[_paymasterDataOffset:_paymasterDataOffset + 1]));
-        bool allowAllBundlers = uint8(bytes1(_paymasterAndData[_paymasterDataOffset + 1:_paymasterDataOffset + 2])) == 1;
-        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 2:];
+        uint8 combinedByte = uint8(_paymasterAndData[_paymasterDataOffset]);
+        // allowAllBundlers is in the *lowest* bit
+        bool allowAllBundlers = (combinedByte & 0x01) != 0;
+        // rest of the bits represent the mode
+        uint8 mode = uint8((combinedByte >> 1));
+
+        bytes calldata paymasterConfig = _paymasterAndData[_paymasterDataOffset + 1:];
 
         return (mode, allowAllBundlers, paymasterConfig);
     }
@@ -249,9 +253,11 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
 
         uint128 configPointer = 0;
 
-        bool constantFeePresent = uint8(bytes1(_paymasterConfig[configPointer:configPointer + 1])) == 1; // 1 byte
-        configPointer += 1;
-        bool recipientPresent = uint8(bytes1(_paymasterConfig[configPointer:configPointer + 1])) == 1; // 1 byte
+        uint8 combinedByte = uint8(_paymasterConfig[configPointer]);
+        // constantFeePresent is in the *lowest* bit
+        bool constantFeePresent = (combinedByte & 0x01) != 0;
+        // recipientPresent is in the second lowest bit
+        bool recipientPresent = (combinedByte & 0x02) != 0;
         configPointer += 1;
         config.validUntil = uint48(bytes6(_paymasterConfig[configPointer:configPointer + 6])); // 6 bytes
         configPointer += 6;

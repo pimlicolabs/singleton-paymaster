@@ -32,22 +32,18 @@ struct PaymasterData {
     address paymasterAddress;
     uint48 validUntil;
     uint48 validAfter;
-    bool allowAllBundlers;
+    uint8 allowAllBundlers;
 }
 
 contract SingletonPaymasterV6Test is Test {
     uint8 immutable VERIFYING_MODE = 0;
     uint8 immutable ERC20_MODE = 1;
-    bool immutable ALLOW_ALL_BUNDLERS = true;
-    bool immutable ALLOW_WHITELISTED_BUNDLERS = false;
+    uint8 immutable ALLOW_ALL_BUNDLERS = 1;
+    uint8 immutable ALLOW_WHITELISTED_BUNDLERS = 0;
     uint256 immutable EXCHANGE_RATE = 3000 * 1e18;
     uint128 immutable POSTOP_GAS = 50_000;
     /// @notice The length of the ERC-20 config without singature.
-    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 118;
-
-    /// @notice The length of the ERC-20 with constant fee config with singature.
-    uint8 immutable ERC20_WITH_CONSTANT_FEE_PAYMASTER_DATA_LENGTH = 134; // 116 + 16 (constantFee) + 2 (mode &
-        // allowAllBundlers)
+    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
 
     /// @notice The length of the verfiying config without singature.
     uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12 (mode & allowAllBundlers)
@@ -245,7 +241,8 @@ contract SingletonPaymasterV6Test is Test {
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(address(paymaster), invalidMode, ALLOW_ALL_BUNDLERS);
+        op.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint8((ALLOW_ALL_BUNDLERS & 0x01) | (invalidMode << 1)));
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, 0, "AA33 reverted (or OOG)"));
         submitUserOp(op);
@@ -265,9 +262,8 @@ contract SingletonPaymasterV6Test is Test {
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData = abi.encodePacked(
-            address(paymaster), uint128(100_000), uint128(50_000), mode, ALLOW_ALL_BUNDLERS, _randomBytes
-        );
+        op.paymasterAndData =
+            abi.encodePacked(address(paymaster), uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)), _randomBytes);
         op.signature = signUserOp(op, userKey);
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
         submitUserOp(op);
@@ -290,8 +286,7 @@ contract SingletonPaymasterV6Test is Test {
         if (mode == VERIFYING_MODE) {
             op.paymasterAndData = abi.encodePacked(
                 address(paymaster), // paymaster
-                mode, // mode
-                ALLOW_ALL_BUNDLERS, // allowAllBundlers
+                uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)),
                 uint48(0), // validUntil
                 int48(0), // validAfter
                 "BYTES WITH INVALID SIGNATURE LENGTH"
@@ -301,10 +296,8 @@ contract SingletonPaymasterV6Test is Test {
         if (mode == ERC20_MODE) {
             op.paymasterAndData = abi.encodePacked(
                 address(paymaster), // paymaster
-                mode, // mode
-                ALLOW_ALL_BUNDLERS, // allowAllBundlers
-                constantFeePresent, // constantFeePresent
-                recipientPresent, // recipientPresent
+                uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)),
+                uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
                 uint48(0), // validUntil
                 int48(0), // validAfter
                 address(token), // token
@@ -373,10 +366,8 @@ contract SingletonPaymasterV6Test is Test {
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS, // allowAllBundlers
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(0), // **will throw here, token address cannot be zero.**
@@ -417,10 +408,8 @@ contract SingletonPaymasterV6Test is Test {
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS, // allowAllBundlers
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             uint48(0), // validAfter
             address(token), // token
@@ -469,10 +458,8 @@ contract SingletonPaymasterV6Test is Test {
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS,
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -519,10 +506,8 @@ contract SingletonPaymasterV6Test is Test {
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
-            ERC20_MODE, // mode
-            ALLOW_ALL_BUNDLERS,
-            constantFeePresent,
-            recipientPresent,
+            uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -876,18 +861,10 @@ contract SingletonPaymasterV6Test is Test {
         flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(0), uint8(0));
     }
 
-    function testValidateSignatureCorrectnessWithConstantFee() external {
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(1), uint8(0));
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(1), uint8(1));
-    }
-
-    function testValidateSignatureCorrectnessWithRecipient() external {
+    function testValidateSignatureCorrectnessWithConstantFeeAndRecipient() external {
         flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(1));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(0), uint8(1));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0));
         flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(1), uint8(1));
     }
 
     // HELPERS //
@@ -963,7 +940,7 @@ contract SingletonPaymasterV6Test is Test {
             }
         }
 
-        uint256 paymasterConfigLength = 20 + 2; // include mode and allowAllBundlers
+        uint256 paymasterConfigLength = 20 + 1; // include mode and allowAllBundlers
 
         if (_mode == ERC20_MODE) {
             paymasterConfigLength += ERC20_PAYMASTER_DATA_LENGTH;
@@ -984,12 +961,12 @@ contract SingletonPaymasterV6Test is Test {
         // check paymasterAndData
         for (uint256 byteIndex = 0; byteIndex < paymasterConfigLength; byteIndex++) {
             // we don't want to flip the mode byte and allowAllBundlers byte
-            if (byteIndex == 20 || byteIndex == 21) {
+            if (byteIndex == 20) {
                 continue;
             }
 
             // don't change constantFeePresent and recipientPresent
-            if (_mode == ERC20_MODE && (byteIndex == 22 || byteIndex == 23)) {
+            if (_mode == ERC20_MODE && byteIndex == 21) {
                 continue;
             }
 
@@ -1012,7 +989,7 @@ contract SingletonPaymasterV6Test is Test {
 
     function getSignedPaymasterData(
         uint8 mode,
-        bool allowAllBundlers,
+        uint8 allowAllBundlers,
         UserOperation memory userOp,
         uint8 constantFeePresent,
         uint8 recipientPresent
@@ -1058,14 +1035,15 @@ contract SingletonPaymasterV6Test is Test {
     {
         // set paymasterAndData here so that correct hash is calculated.
         userOp.paymasterAndData = abi.encodePacked(
-            address(paymaster), VERIFYING_MODE, data.allowAllBundlers, data.validUntil, data.validAfter
+            address(paymaster),
+            uint8((data.allowAllBundlers & 0x01) | (VERIFYING_MODE << 1)),
+            data.validUntil,
+            data.validAfter
         );
         bytes32 hash = paymaster.getHash(VERIFYING_MODE, userOp);
         bytes memory sig = getSignature(hash, signerKey);
 
-        return abi.encodePacked(
-            data.paymasterAddress, VERIFYING_MODE, data.allowAllBundlers, data.validUntil, data.validAfter, sig
-        );
+        return abi.encodePacked(userOp.paymasterAndData, sig);
     }
 
     function getERC20ModeData(
@@ -1085,10 +1063,8 @@ contract SingletonPaymasterV6Test is Test {
     {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
-            ERC20_MODE,
-            data.allowAllBundlers,
-            constantFeePresent,
-            recipientPresent,
+            uint8((data.allowAllBundlers & 0x01) | (ERC20_MODE << 1)),
+            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
             data.validUntil,
             data.validAfter,
             erc20,
