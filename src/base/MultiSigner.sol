@@ -3,17 +3,15 @@ pragma solidity ^0.8.0;
 
 /* solhint-disable reason-string */
 
-import { AccessControl } from "@openzeppelin-v5.0.2/contracts/access/AccessControl.sol";
-import { IAccessControl } from "@openzeppelin-v5.0.2/contracts/access/IAccessControl.sol";
+import { ManagerAccessControl } from "./ManagerAccessControl.sol";
+import { IManagerAccessControl } from "./ManagerAccessControl.sol";
 import { IERC165 } from "@openzeppelin-v5.0.2/contracts/utils/introspection/IERC165.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**
  * Helper class for creating a contract with multiple valid signers.
  */
-abstract contract MultiSigner is AccessControl {
-    bytes32 public constant MANAGER_ROLE = keccak256("MANAGER_ROLE");
-
+abstract contract MultiSigner is ManagerAccessControl {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -47,7 +45,7 @@ abstract contract MultiSigner is AccessControl {
 
     function removeSigner(address _signer) public {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(MANAGER_ROLE, msg.sender)) {
-            revert IAccessControl.AccessControlUnauthorizedAccount(msg.sender, MANAGER_ROLE);
+            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, MANAGER_ROLE);
         }
         signers[_signer] = false;
         emit SignerRemoved(_signer);
@@ -55,7 +53,7 @@ abstract contract MultiSigner is AccessControl {
 
     function addSigner(address _signer) public {
         if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(MANAGER_ROLE, msg.sender)) {
-            revert IAccessControl.AccessControlUnauthorizedAccount(msg.sender, MANAGER_ROLE);
+            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, MANAGER_ROLE);
         }
         signers[_signer] = true;
         emit SignerAdded(_signer);

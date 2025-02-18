@@ -3,16 +3,18 @@ pragma solidity ^0.8.0;
 
 /* solhint-disable reason-string */
 
-import { AccessControl } from "@openzeppelin-v5.0.2/contracts/access/AccessControl.sol";
+import { ManagerAccessControl } from "./ManagerAccessControl.sol";
+import { IManagerAccessControl } from "./ManagerAccessControl.sol";
 import { IERC165 } from "@openzeppelin-v5.0.2/contracts/utils/introspection/IERC165.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { MultiSigner } from "./MultiSigner.sol";
 
 /**
  * Helper class for creating a paymaster.
  * provides helper methods for staking.
  * Validates that the postOp is called only by the entryPoint.
  */
-abstract contract BasePaymaster is AccessControl {
+abstract contract BasePaymaster is ManagerAccessControl {
     IEntryPoint public immutable entryPoint;
 
     constructor(address _entryPoint, address _owner) {
@@ -41,7 +43,10 @@ abstract contract BasePaymaster is AccessControl {
      * This method can also carry eth value to add to the current stake.
      * @param unstakeDelaySec - The unstake delay for this paymaster. Can only be increased.
      */
-    function addStake(uint32 unstakeDelaySec) external payable onlyRole(DEFAULT_ADMIN_ROLE) {
+    function addStake(uint32 unstakeDelaySec) external payable {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(ManagerAccessControl.MANAGER_ROLE, msg.sender)) {
+            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, ManagerAccessControl.MANAGER_ROLE);
+        }
         entryPoint.addStake{ value: msg.value }(unstakeDelaySec);
     }
 
@@ -56,7 +61,10 @@ abstract contract BasePaymaster is AccessControl {
      * Unlock the stake, in order to withdraw it.
      * The paymaster can't serve requests once unlocked, until it calls addStake again
      */
-    function unlockStake() external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function unlockStake() external {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(ManagerAccessControl.MANAGER_ROLE, msg.sender)) {
+            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, ManagerAccessControl.MANAGER_ROLE);
+        }
         entryPoint.unlockStake();
     }
 

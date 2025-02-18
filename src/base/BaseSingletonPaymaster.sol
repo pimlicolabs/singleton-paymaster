@@ -11,7 +11,8 @@ import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol
 import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-import { AccessControl } from "@openzeppelin-v5.0.2/contracts/access/AccessControl.sol";
+import { ManagerAccessControl } from "./ManagerAccessControl.sol";
+import { IManagerAccessControl } from "./ManagerAccessControl.sol";
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -79,7 +80,7 @@ struct ERC20PaymasterData {
 /// @notice Helper class for creating a singleton paymaster.
 /// @dev Inherits from BasePaymaster.
 /// @dev Inherits from MultiSigner.
-abstract contract BaseSingletonPaymaster is AccessControl, BasePaymaster, MultiSigner {
+abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster, MultiSigner {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -192,7 +193,10 @@ abstract contract BaseSingletonPaymaster is AccessControl, BasePaymaster, MultiS
     ///
     /// @param bundlers Array of bundler addresses
     /// @param allowed Boolean indicating if bundlers should be allowed or not
-    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external onlyRole(DEFAULT_ADMIN_ROLE) {
+    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external {
+        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(ManagerAccessControl.MANAGER_ROLE, msg.sender)) {
+            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, ManagerAccessControl.MANAGER_ROLE);
+        }
         for (uint256 i = 0; i < bundlers.length; i++) {
             isBundlerAllowed[bundlers[i]] = allowed;
             emit BundlerAllowlistUpdated(bundlers[i], allowed);
@@ -467,8 +471,6 @@ abstract contract BaseSingletonPaymaster is AccessControl, BasePaymaster, MultiS
 
     function _parsePostOpContext(bytes calldata _context) internal pure returns (ERC20PostOpContext memory ctx) {
         ctx = abi.decode(_context, (ERC20PostOpContext));
-
-        return ctx;
     }
 
     /**

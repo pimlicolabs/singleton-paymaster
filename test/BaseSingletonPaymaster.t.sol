@@ -6,6 +6,7 @@ import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/
 import { IAccessControl } from "openzeppelin-contracts-v5.0.2/contracts/access/IAccessControl.sol";
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { IManagerAccessControl } from "../src/base/ManagerAccessControl.sol";
 
 import { EntryPoint } from "./utils/account-abstraction/v07/core/EntryPoint.sol";
 import { SimpleAccountFactory, SimpleAccount } from "./utils/account-abstraction/v07/samples/SimpleAccountFactory.sol";
@@ -23,7 +24,6 @@ contract BaseSingletonPaymasterTest is Test {
     address paymasterSigner;
     uint256 paymasterSignerKey;
     address manager;
-    uint256 managerKey;
     address user;
     uint256 userKey;
 
@@ -43,7 +43,7 @@ contract BaseSingletonPaymasterTest is Test {
         beneficiary = payable(makeAddr("beneficiary"));
         (paymasterOwner, paymasterOwnerKey) = makeAddrAndKey("paymasterOwner");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
-        (manager, managerKey) = makeAddrAndKey("manager");
+        (manager) = makeAddr("manager");
         (user, userKey) = makeAddrAndKey("user");
 
         entryPoint = new EntryPoint();
@@ -138,6 +138,47 @@ contract BaseSingletonPaymasterTest is Test {
         vm.prank(manager);
         paymaster.removeSigner(beneficiary);
         assertFalse(paymaster.signers(beneficiary));
+    }
+
+    function testUpdateBundlerAllowlist() external {
+        address[] memory bundlers = new address[](1);
+        bundlers[0] = address(DEFAULT_SENDER);
+
+        // random address should not be able to update allowlist
+        address randomAddr = makeAddr("random");
+        vm.prank(randomAddr);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IManagerAccessControl.AccessControlUnauthorizedAccount.selector, address(this), paymaster.MANAGER_ROLE()
+            )
+        );
+        paymaster.updateBundlerAllowlist(bundlers, true);
+
+        // owner should be able to update allowlist
+        vm.prank(paymasterOwner);
+        paymaster.updateBundlerAllowlist(bundlers, true);
+
+        // verify bundler is allowed
+        assertTrue(paymaster.isBundlerAllowed(address(DEFAULT_SENDER)));
+
+        // setup manager role
+        bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
+        vm.prank(paymasterOwner);
+        paymaster.grantRole(MANAGER_ROLE, manager);
+        assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
+
+        // manager should be able to update allowlist
+        address[] memory bundlers2 = new address[](1);
+        bundlers2[0] = makeAddr("newBundler");
+
+        vm.prank(manager);
+        paymaster.updateBundlerAllowlist(bundlers2, true);
+        assertTrue(paymaster.isBundlerAllowed(bundlers2[0]));
+
+        // manager should be able to remove bundlers
+        vm.prank(manager);
+        paymaster.updateBundlerAllowlist(bundlers2, false);
+        assertFalse(paymaster.isBundlerAllowed(bundlers2[0]));
     }
 
     function testGetCostInToken(
