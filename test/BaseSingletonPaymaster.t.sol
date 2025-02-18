@@ -3,7 +3,7 @@ pragma solidity ^0.8.0;
 
 import { Test, console } from "forge-std/Test.sol";
 import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import { Ownable } from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
+import { IAccessControl } from "openzeppelin-contracts-v5.0.2/contracts/access/IAccessControl.sol";
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
@@ -22,6 +22,8 @@ contract BaseSingletonPaymasterTest is Test {
     uint256 paymasterOwnerKey;
     address paymasterSigner;
     uint256 paymasterSignerKey;
+    address manager;
+    uint256 managerKey;
     address user;
     uint256 userKey;
 
@@ -41,6 +43,7 @@ contract BaseSingletonPaymasterTest is Test {
         beneficiary = payable(makeAddr("beneficiary"));
         (paymasterOwner, paymasterOwnerKey) = makeAddrAndKey("paymasterOwner");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
+        (manager, managerKey) = makeAddrAndKey("manager");
         (user, userKey) = makeAddrAndKey("user");
 
         entryPoint = new EntryPoint();
@@ -55,34 +58,84 @@ contract BaseSingletonPaymasterTest is Test {
 
     function testDeploy() external view {
         assertEq(address(paymaster.entryPoint()), address(entryPoint));
-        assertEq(address(paymaster.owner()), paymasterOwner);
+        assertTrue(paymaster.hasRole(paymaster.DEFAULT_ADMIN_ROLE(), paymasterOwner));
     }
 
     function testAddSigner() external {
+        bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
+
         assertFalse(paymaster.signers(beneficiary));
 
         // only owner should be able to add signer.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), MANAGER_ROLE
+            )
+        );
         paymaster.addSigner(beneficiary);
 
         // should pass if caller is owner.
         vm.prank(paymasterOwner);
         paymaster.addSigner(beneficiary);
         assertTrue(paymaster.signers(beneficiary));
+
+        // remove beneficiary for next test
+        vm.prank(paymasterOwner);
+        paymaster.removeSigner(beneficiary);
+        assertFalse(paymaster.signers(beneficiary));
+
+        // make sure manager is not a signer
+        assertFalse(paymaster.signers(manager));
+        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
+
+        // setup manager role
+        vm.prank(paymasterOwner);
+        paymaster.grantRole(MANAGER_ROLE, manager);
+        assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
+
+        // should pass if caller is manager.
+        vm.prank(manager);
+        paymaster.addSigner(beneficiary);
+        assertTrue(paymaster.signers(beneficiary));
     }
 
     function testRemoveSigner() external {
+        bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
+
         // setup
         vm.prank(paymasterOwner);
         paymaster.addSigner(beneficiary);
         assertTrue(paymaster.signers(beneficiary));
 
         // only owner should be able to remove signer.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), paymaster.MANAGER_ROLE()
+            )
+        );
         paymaster.removeSigner(beneficiary);
 
         // should pass if caller is owner.
         vm.prank(paymasterOwner);
+        paymaster.removeSigner(beneficiary);
+        assertFalse(paymaster.signers(beneficiary));
+
+        // add the beneficiary as a signer
+        vm.prank(paymasterOwner);
+        paymaster.addSigner(beneficiary);
+        assertTrue(paymaster.signers(beneficiary));
+
+        // make sure manager is not a signer
+        assertFalse(paymaster.signers(manager));
+        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
+
+        // setup manager role
+        vm.prank(paymasterOwner);
+        paymaster.grantRole(MANAGER_ROLE, manager);
+        assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
+
+        // should pass if caller is manager.
+        vm.prank(manager);
         paymaster.removeSigner(beneficiary);
         assertFalse(paymaster.signers(beneficiary));
     }

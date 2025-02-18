@@ -94,7 +94,7 @@ contract SingletonPaymasterV6Test is Test {
         vm.prank(paymasterOwner);
         subject.addSigner(paymasterSigner);
 
-        assertEq(subject.owner(), paymasterOwner);
+        assertTrue(subject.hasRole(paymaster.DEFAULT_ADMIN_ROLE(), paymasterOwner));
         assertTrue(subject.signers(paymasterSigner));
     }
 

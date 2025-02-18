@@ -11,7 +11,7 @@ import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol
 import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
-import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import { AccessControl } from "@openzeppelin-v5.0.2/contracts/access/AccessControl.sol";
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 
@@ -79,7 +79,7 @@ struct ERC20PaymasterData {
 /// @notice Helper class for creating a singleton paymaster.
 /// @dev Inherits from BasePaymaster.
 /// @dev Inherits from MultiSigner.
-abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner {
+abstract contract BaseSingletonPaymaster is AccessControl, BasePaymaster, MultiSigner {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                       CUSTOM ERRORS                        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -192,7 +192,7 @@ abstract contract BaseSingletonPaymaster is Ownable, BasePaymaster, MultiSigner 
     ///
     /// @param bundlers Array of bundler addresses
     /// @param allowed Boolean indicating if bundlers should be allowed or not
-    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external onlyOwner {
+    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external onlyRole(DEFAULT_ADMIN_ROLE) {
         for (uint256 i = 0; i < bundlers.length; i++) {
             isBundlerAllowed[bundlers[i]] = allowed;
             emit BundlerAllowlistUpdated(bundlers[i], allowed);

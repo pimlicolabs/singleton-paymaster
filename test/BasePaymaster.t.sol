@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 import { Test, console } from "forge-std/Test.sol";
 
 import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import { Ownable } from "openzeppelin-contracts-v5.0.2/contracts/access/Ownable.sol";
+import { IAccessControl } from "openzeppelin-contracts-v5.0.2/contracts/access/IAccessControl.sol";
 
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import { IStakeManager } from "account-abstraction-v7/interfaces/IStakeManager.sol";
@@ -65,7 +65,11 @@ contract BasePaymasterTest is Test {
 
     function testWithdrawTo() external {
         // only owner should be able to withdraw.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), paymaster.DEFAULT_ADMIN_ROLE()
+            )
+        );
         BasePaymaster(paymaster).withdrawTo(payable(user), INITIAL_PAYMASTER_DEPOSIT);
 
         // should pass if caller is owner.
@@ -83,7 +87,11 @@ contract BasePaymasterTest is Test {
         uint32 UNSTAKE_DELAY = 10;
 
         // only owner should be able to add stake.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), paymaster.DEFAULT_ADMIN_ROLE()
+            )
+        );
         BasePaymaster(paymaster).addStake{ value: STAKE_AMOUNT }(UNSTAKE_DELAY);
 
         // should pass if caller is owner.
@@ -112,9 +120,17 @@ contract BasePaymasterTest is Test {
         BasePaymaster(paymaster).addStake{ value: STAKE_AMOUNT }(UNSTAKE_DELAY);
 
         // only owner should be able to unlockStatke + unstake.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), paymaster.DEFAULT_ADMIN_ROLE()
+            )
+        );
         BasePaymaster(paymaster).unlockStake();
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), paymaster.DEFAULT_ADMIN_ROLE()
+            )
+        );
         BasePaymaster(paymaster).withdrawStake(payable(user));
 
         // calling unlock too early should revert
@@ -135,14 +151,27 @@ contract BasePaymasterTest is Test {
 
     function testOwnershipTransfer() external {
         // only owner should be able to transfer ownership.
-        vm.expectRevert(abi.encodeWithSelector(Ownable.OwnableUnauthorizedAccount.selector, address(this)));
-        paymaster.transferOwnership(beneficiary);
+        bytes32 DEFAULT_ADMIN_ROLE = paymaster.DEFAULT_ADMIN_ROLE();
+
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), DEFAULT_ADMIN_ROLE
+            )
+        );
+        paymaster.grantRole(DEFAULT_ADMIN_ROLE, beneficiary);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                IAccessControl.AccessControlUnauthorizedAccount.selector, address(this), DEFAULT_ADMIN_ROLE
+            )
+        );
+        paymaster.revokeRole(DEFAULT_ADMIN_ROLE, paymasterOwner);
 
         // should pass if caller is owner.
         vm.startPrank(paymasterOwner);
-        assertEq(paymaster.owner(), paymasterOwner);
-        paymaster.transferOwnership(beneficiary);
-        assertEq(paymaster.owner(), beneficiary);
+        assertTrue(paymaster.hasRole(paymaster.DEFAULT_ADMIN_ROLE(), paymasterOwner));
+        paymaster.grantRole(paymaster.DEFAULT_ADMIN_ROLE(), beneficiary);
+        paymaster.revokeRole(paymaster.DEFAULT_ADMIN_ROLE(), paymasterOwner);
+        assertTrue(paymaster.hasRole(paymaster.DEFAULT_ADMIN_ROLE(), beneficiary));
         vm.stopPrank();
     }
 }
