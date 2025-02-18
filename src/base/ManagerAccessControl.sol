@@ -4,9 +4,6 @@ pragma solidity ^0.8.0;
 /* solhint-disable reason-string */
 
 import { AccessControl } from "@openzeppelin-v5.0.2/contracts/access/AccessControl.sol";
-import { IAccessControl } from "@openzeppelin-v5.0.2/contracts/access/IAccessControl.sol";
-import { IERC165 } from "@openzeppelin-v5.0.2/contracts/utils/introspection/IERC165.sol";
-import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 
 /**
  * Helper class for creating a contract with multiple valid signers.
