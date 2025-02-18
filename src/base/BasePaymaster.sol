@@ -17,9 +17,10 @@ import { MultiSigner } from "./MultiSigner.sol";
 abstract contract BasePaymaster is ManagerAccessControl {
     IEntryPoint public immutable entryPoint;
 
-    constructor(address _entryPoint, address _owner) {
+    constructor(address _entryPoint, address _owner, address _manager) {
         entryPoint = IEntryPoint(_entryPoint);
         _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        _grantRole(MANAGER_ROLE, _manager);
     }
 
     /**
@@ -43,10 +44,7 @@ abstract contract BasePaymaster is ManagerAccessControl {
      * This method can also carry eth value to add to the current stake.
      * @param unstakeDelaySec - The unstake delay for this paymaster. Can only be increased.
      */
-    function addStake(uint32 unstakeDelaySec) external payable {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(ManagerAccessControl.MANAGER_ROLE, msg.sender)) {
-            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, ManagerAccessControl.MANAGER_ROLE);
-        }
+    function addStake(uint32 unstakeDelaySec) external payable onlyAdminOrManager {
         entryPoint.addStake{ value: msg.value }(unstakeDelaySec);
     }
 
@@ -61,10 +59,7 @@ abstract contract BasePaymaster is ManagerAccessControl {
      * Unlock the stake, in order to withdraw it.
      * The paymaster can't serve requests once unlocked, until it calls addStake again
      */
-    function unlockStake() external {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(ManagerAccessControl.MANAGER_ROLE, msg.sender)) {
-            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, ManagerAccessControl.MANAGER_ROLE);
-        }
+    function unlockStake() external onlyAdminOrManager {
         entryPoint.unlockStake();
     }
 

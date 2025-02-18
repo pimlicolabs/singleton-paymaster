@@ -42,7 +42,7 @@ contract BasePaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, manager, new address[](0));
 
         vm.deal(paymasterOwner, 100e18);
         vm.deal(manager, 100e18);
@@ -50,7 +50,7 @@ contract BasePaymasterTest is Test {
     }
 
     function testConstructorSuccess() external {
-        new SingletonPaymasterV7(address(0), address(1), new address[](0));
+        new SingletonPaymasterV7(address(0), address(1), address(2), new address[](0));
     }
 
     function testGetDeposit() external view {
@@ -75,12 +75,6 @@ contract BasePaymasterTest is Test {
         BasePaymaster(paymaster).withdrawTo(payable(user), INITIAL_PAYMASTER_DEPOSIT);
 
         bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
-        // make sure manager is not assigned
-        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
-
-        // setup manager role
-        vm.prank(paymasterOwner);
-        paymaster.grantRole(MANAGER_ROLE, manager);
         assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
 
         // only owner should be able to withdraw.
@@ -136,12 +130,6 @@ contract BasePaymasterTest is Test {
         uint32 UNSTAKE_DELAY = 10;
 
         bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
-        // make sure manager is not assigned
-        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
-
-        // setup manager role
-        vm.prank(paymasterOwner);
-        paymaster.grantRole(MANAGER_ROLE, manager);
         assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
 
         // should pass if caller is manager.
@@ -205,12 +193,7 @@ contract BasePaymasterTest is Test {
 
         bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
         bytes32 DEFAULT_ADMIN_ROLE = paymaster.DEFAULT_ADMIN_ROLE();
-        // make sure manager is not assigned
-        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
 
-        // setup manager role
-        vm.prank(paymasterOwner);
-        paymaster.grantRole(MANAGER_ROLE, manager);
         assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
 
         // add stake so that we can test unstaking.

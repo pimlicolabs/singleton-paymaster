@@ -37,9 +37,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     constructor(
         address _entryPoint,
         address _owner,
+        address _manager,
         address[] memory _signers
     )
-        BaseSingletonPaymaster(_entryPoint, _owner, _signers)
+        BaseSingletonPaymaster(_entryPoint, _owner, _manager, _signers)
     { }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

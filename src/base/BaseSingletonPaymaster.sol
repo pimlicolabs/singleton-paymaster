@@ -179,9 +179,10 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
     constructor(
         address _entryPoint,
         address _owner,
+        address _manager,
         address[] memory _signers
     )
-        BasePaymaster(_entryPoint, _owner)
+        BasePaymaster(_entryPoint, _owner, _manager)
         MultiSigner(_signers)
     { }
 
@@ -193,10 +194,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
     ///
     /// @param bundlers Array of bundler addresses
     /// @param allowed Boolean indicating if bundlers should be allowed or not
-    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(ManagerAccessControl.MANAGER_ROLE, msg.sender)) {
-            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, ManagerAccessControl.MANAGER_ROLE);
-        }
+    function updateBundlerAllowlist(address[] calldata bundlers, bool allowed) external onlyAdminOrManager {
         for (uint256 i = 0; i < bundlers.length; i++) {
             isBundlerAllowed[bundlers[i]] = allowed;
             emit BundlerAllowlistUpdated(bundlers[i], allowed);

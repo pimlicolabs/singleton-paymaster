@@ -59,7 +59,7 @@ contract SingletonPaymasterV7Test is Test {
     uint256 unauthorizedSignerKey;
     address user;
     uint256 userKey;
-
+    address manager;
     SingletonPaymasterV7 paymaster;
     SimpleAccountFactory accountFactory;
     SimpleAccount account;
@@ -76,6 +76,7 @@ contract SingletonPaymasterV7Test is Test {
         paymasterOwner = makeAddr("paymasterOwner");
         treasury = makeAddr("treasury");
         recipient = makeAddr("recipient");
+        manager = makeAddr("manager");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -84,7 +85,7 @@ contract SingletonPaymasterV7Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, manager, new address[](0));
         paymaster.deposit{ value: 100e18 }();
 
         vm.prank(paymasterOwner);
@@ -92,7 +93,8 @@ contract SingletonPaymasterV7Test is Test {
     }
 
     function testDeployment() external {
-        SingletonPaymasterV7 subject = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
+        SingletonPaymasterV7 subject =
+            new SingletonPaymasterV7(address(entryPoint), paymasterOwner, manager, new address[](0));
         vm.prank(paymasterOwner);
         subject.addSigner(paymasterSigner);
 

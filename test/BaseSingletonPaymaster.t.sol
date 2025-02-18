@@ -49,7 +49,7 @@ contract BaseSingletonPaymasterTest is Test {
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
-        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, new address[](0));
+        paymaster = new SingletonPaymasterV7(address(entryPoint), paymasterOwner, manager, new address[](0));
         paymaster.deposit{ value: INITIAL_DEPOSIT }();
 
         vm.prank(paymasterOwner);
@@ -84,13 +84,6 @@ contract BaseSingletonPaymasterTest is Test {
         paymaster.removeSigner(beneficiary);
         assertFalse(paymaster.signers(beneficiary));
 
-        // make sure manager is not a signer
-        assertFalse(paymaster.signers(manager));
-        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
-
-        // setup manager role
-        vm.prank(paymasterOwner);
-        paymaster.grantRole(MANAGER_ROLE, manager);
         assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
 
         // should pass if caller is manager.
@@ -125,13 +118,7 @@ contract BaseSingletonPaymasterTest is Test {
         paymaster.addSigner(beneficiary);
         assertTrue(paymaster.signers(beneficiary));
 
-        // make sure manager is not a signer
-        assertFalse(paymaster.signers(manager));
-        assertFalse(paymaster.hasRole(MANAGER_ROLE, manager));
-
         // setup manager role
-        vm.prank(paymasterOwner);
-        paymaster.grantRole(MANAGER_ROLE, manager);
         assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
 
         // should pass if caller is manager.
@@ -163,8 +150,6 @@ contract BaseSingletonPaymasterTest is Test {
 
         // setup manager role
         bytes32 MANAGER_ROLE = paymaster.MANAGER_ROLE();
-        vm.prank(paymasterOwner);
-        paymaster.grantRole(MANAGER_ROLE, manager);
         assertTrue(paymaster.hasRole(MANAGER_ROLE, manager));
 
         // manager should be able to update allowlist

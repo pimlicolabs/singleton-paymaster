@@ -43,18 +43,12 @@ abstract contract MultiSigner is ManagerAccessControl {
     /*                      ADMIN FUNCTIONS                       */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    function removeSigner(address _signer) public {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(MANAGER_ROLE, msg.sender)) {
-            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, MANAGER_ROLE);
-        }
+    function removeSigner(address _signer) public onlyAdminOrManager {
         signers[_signer] = false;
         emit SignerRemoved(_signer);
     }
 
-    function addSigner(address _signer) public {
-        if (!hasRole(DEFAULT_ADMIN_ROLE, msg.sender) && !hasRole(MANAGER_ROLE, msg.sender)) {
-            revert IManagerAccessControl.AccessControlUnauthorizedAccount(msg.sender, MANAGER_ROLE);
-        }
+    function addSigner(address _signer) public onlyAdminOrManager {
         signers[_signer] = true;
         emit SignerAdded(_signer);
     }
