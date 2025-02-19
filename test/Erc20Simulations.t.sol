@@ -45,6 +45,7 @@ contract SingletonPaymasterV6Test is Test {
     address paymasterOwner;
     address paymasterSigner;
     address treasury;
+    address manager;
     uint256 paymasterSignerKey;
     uint256 unauthorizedSignerKey;
     address user;
@@ -65,6 +66,7 @@ contract SingletonPaymasterV6Test is Test {
         beneficiary = payable(makeAddr("beneficiary"));
         paymasterOwner = makeAddr("paymasterOwner");
         treasury = makeAddr("treasury");
+        manager = makeAddr("manager");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -73,7 +75,7 @@ contract SingletonPaymasterV6Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, new address[](0));
+        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, manager, new address[](0));
         paymaster.deposit{ value: 100e18 }();
 
         vm.prank(paymasterOwner);

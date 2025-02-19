@@ -52,6 +52,7 @@ contract SingletonPaymasterV6Test is Test {
     address paymasterOwner;
     address paymasterSigner;
     address treasury;
+    address manager;
     address recipient;
     uint256 paymasterSignerKey;
     uint256 unauthorizedSignerKey;
@@ -74,6 +75,7 @@ contract SingletonPaymasterV6Test is Test {
         paymasterOwner = makeAddr("paymasterOwner");
         treasury = makeAddr("treasury");
         recipient = makeAddr("recipient");
+        manager = makeAddr("manager");
         (paymasterSigner, paymasterSignerKey) = makeAddrAndKey("paymasterSigner");
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
@@ -82,7 +84,7 @@ contract SingletonPaymasterV6Test is Test {
         accountFactory = new SimpleAccountFactory(entryPoint);
         account = accountFactory.createAccount(user, 0);
 
-        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, new address[](0));
+        paymaster = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, manager, new address[](0));
         paymaster.deposit{ value: 100e18 }();
 
         vm.prank(paymasterOwner);
@@ -90,11 +92,12 @@ contract SingletonPaymasterV6Test is Test {
     }
 
     function testDeployment() external {
-        SingletonPaymasterV6 subject = new SingletonPaymasterV6(address(entryPoint), paymasterOwner, new address[](0));
+        SingletonPaymasterV6 subject =
+            new SingletonPaymasterV6(address(entryPoint), paymasterOwner, manager, new address[](0));
         vm.prank(paymasterOwner);
         subject.addSigner(paymasterSigner);
 
-        assertEq(subject.owner(), paymasterOwner);
+        assertTrue(subject.hasRole(paymaster.DEFAULT_ADMIN_ROLE(), paymasterOwner));
         assertTrue(subject.signers(paymasterSigner));
     }
 

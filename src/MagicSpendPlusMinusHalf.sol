@@ -9,7 +9,7 @@ import { IERC20 } from "@openzeppelin-v5.0.2/contracts/token/ERC20/IERC20.sol";
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
-import { Ownable } from "@openzeppelin-v5.0.2/contracts/access/Ownable.sol";
+import { ManagerAccessControl } from "./base/ManagerAccessControl.sol";
 
 import { MultiSigner } from "./base/MultiSigner.sol";
 
@@ -48,7 +48,7 @@ struct WithdrawRequest {
 /// @dev Inherits from MultiSigner.
 /// @dev Inherits from Ownable.
 /// @custom:security-contact security@pimlico.io
-contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
+contract MagicSpendPlusMinusHalf is ManagerAccessControl, MultiSigner {
     /// @notice Thrown when the request was submitted past its validUntil.
     error RequestExpired();
 
@@ -76,7 +76,9 @@ contract MagicSpendPlusMinusHalf is Ownable, MultiSigner {
     /// @notice Mappings keeping track of already used nonces per user to prevent replays of withdraw requests.
     mapping(address user => mapping(uint256 nonce => bool used)) public nonceUsed;
 
-    constructor(address _owner, address[] memory _signers) Ownable(_owner) MultiSigner(_signers) { }
+    constructor(address _owner, address[] memory _signers) MultiSigner(_signers) {
+        _grantRole(DEFAULT_ADMIN_ROLE, _owner);
+    }
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                     EXTERNAL FUNCTIONS                     */

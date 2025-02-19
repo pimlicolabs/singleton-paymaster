@@ -9,19 +9,21 @@ import { SingletonPaymasterV7 } from "../src/SingletonPaymasterV7.sol";
 contract MultiSignerTest is Test {
     MultiSigner paymaster;
     address paymasterOwner;
+    address manager;
 
     address[] initialSigners;
 
     function setUp() external {
         paymasterOwner = makeAddr("paymasterOwner");
-        paymaster = new SingletonPaymasterV7(address(0), paymasterOwner, new address[](0));
+        manager = makeAddr("manager");
+        paymaster = new SingletonPaymasterV7(address(0), paymasterOwner, manager, new address[](0));
     }
 
     function testAddSignersDuringInitialization() external {
         initialSigners.push(address(1));
         initialSigners.push(address(2));
         initialSigners.push(address(3));
-        paymaster = new SingletonPaymasterV7(makeAddr("EntryPoint"), paymasterOwner, initialSigners);
+        paymaster = new SingletonPaymasterV7(makeAddr("EntryPoint"), paymasterOwner, manager, initialSigners);
 
         vm.assertTrue(paymaster.signers(address(1)));
         vm.assertTrue(paymaster.signers(address(2)));
