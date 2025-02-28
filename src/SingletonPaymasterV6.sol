@@ -313,6 +313,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             )
         );
 
-        return keccak256(abi.encode(userOpHash, block.chainid, address(this)));
+        return keccak256(abi.encode(userOpHash, block.chainid));
     }
 }

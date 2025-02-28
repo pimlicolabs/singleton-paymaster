@@ -325,6 +325,6 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             )
         );
 
-        return keccak256(abi.encode(userOpHash, block.chainid, address(this)));
+        return keccak256(abi.encode(userOpHash, block.chainid));
     }
 }
