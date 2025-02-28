@@ -200,9 +200,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
         uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(ctx.maxFeePerGas, ctx.maxPriorityFeePerGas);
 
-        uint256 costInToken = getCostInToken(
-            _actualGasCost / actualUserOpFeePerGas, ctx.postOpGas, actualUserOpFeePerGas, ctx.exchangeRate
-        ) + ctx.constantFee;
+        uint256 costInToken =
+            getCostInToken(_actualGasCost, ctx.postOpGas, actualUserOpFeePerGas, ctx.exchangeRate) + ctx.constantFee;
 
         // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
         // it will revert the whole bundle instead of just force failing the userOperation.

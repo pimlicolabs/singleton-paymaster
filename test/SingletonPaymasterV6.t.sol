@@ -583,7 +583,7 @@ contract SingletonPaymasterV6Test is Test {
         uint256 actualGasCost = userOperationGasUsed * actualUserOpFeePerGas;
 
         uint256 expectedCostInToken =
-            paymaster.getCostInToken(userOperationGasUsed, postOpGas, actualUserOpFeePerGas, exchangeRate);
+            paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
         setupERC20Environment(expectedCostInToken);
 
@@ -795,7 +795,7 @@ contract SingletonPaymasterV6Test is Test {
         vm.prank(address(entryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost);
         uint256 expectedCostInTokenWithoutConstantFee =
-            paymaster.getCostInToken(userOperationGasUsed, postOpGas, actualUserOpFeePerGas, exchangeRate);
+            paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
         uint256 expectedCostInToken = constantFeePresent == 1
             ? expectedCostInTokenWithoutConstantFee + constantFee
