@@ -192,10 +192,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @param _actualGasCost The total gas cost (in wei) of this userOperation.
      */
     function _postOp(PostOpMode _postOpMode, bytes calldata _context, uint256 _actualGasCost) internal {
-        if (_postOpMode == PostOpMode.postOpReverted) {
-            return;
-        }
-
         ERC20PostOpContext memory ctx = _parsePostOpContext(_context);
 
         uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(ctx.maxFeePerGas, ctx.maxPriorityFeePerGas);
@@ -208,6 +204,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
         // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
         bool success = SafeTransferLib.trySafeTransferFrom(ctx.token, ctx.sender, ctx.treasury, costInToken);
+
+        if (_postOpMode == PostOpMode.postOpReverted && !success) {
+            return;
+        }
 
         if (!success) {
             revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");

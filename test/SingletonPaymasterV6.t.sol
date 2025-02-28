@@ -732,6 +732,36 @@ contract SingletonPaymasterV6Test is Test {
         );
     }
 
+    function test_PostOpFirstTransferFromFailed() external {
+        setupERC20Environment(UINT256_MAX);
+
+        // treasury should have no tokens
+        assertEq(token.balanceOf(treasury), 0);
+
+        UserOperation memory op = fillUserOp();
+        op.callData = abi.encodeWithSelector(
+            SimpleAccount.execute.selector,
+            address(token),
+            0,
+            // remove the approve during execution phase
+            abi.encodeWithSelector(TestERC20.sudoApprove.selector, address(account), address(paymaster), 0)
+        );
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0));
+        op.signature = signUserOp(op, userKey);
+
+        // check that UserOperationSponsored log is emitted.
+        // event data check is skipped because we don't know how much will be spent.
+        vm.expectEmit(true, true, true, false, address(paymaster));
+        emit BaseSingletonPaymaster.UserOperationSponsored(
+            getOpHash(op), op.sender, ERC20_MODE, address(token), 0, EXCHANGE_RATE
+        );
+
+        submitUserOp(op);
+
+        // treasury should now have tokens
+        assertGt(token.balanceOf(treasury), 0);
+    }
+
     // test that the treasury receives funds when postOp is called
     function test_postOpCalculation(
         uint256 _exchangeRate,
