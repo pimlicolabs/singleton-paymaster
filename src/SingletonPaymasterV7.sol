@@ -55,14 +55,14 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     function validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32 userOpHash,
-        uint256 maxCost
+        uint256 requiredPreFund
     )
         external
         override
         returns (bytes memory context, uint256 validationData)
     {
         _requireFromEntryPoint();
-        return _validatePaymasterUserOp(userOp, userOpHash, maxCost);
+        return _validatePaymasterUserOp(userOp, userOpHash, requiredPreFund);
     }
 
     /// @inheritdoc IPaymasterV7
@@ -116,7 +116,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     function _validatePaymasterUserOp(
         PackedUserOperation calldata _userOp,
         bytes32 _userOpHash,
-        uint256 /* maxCost */
+        uint256 _requiredPreFund
     )
         internal
         returns (bytes memory, uint256)
@@ -140,7 +140,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         }
 
         if (mode == ERC20_MODE) {
-            (context, validationData) = _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash);
+            (context, validationData) =
+                _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash, _requiredPreFund);
         }
 
         return (context, validationData);
@@ -184,7 +185,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint8 _mode,
         PackedUserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
-        bytes32 _userOpHash
+        bytes32 _userOpHash,
+        uint256 _requiredPreFund
     )
         internal
         view
@@ -198,7 +200,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
 
-        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg);
+        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg, _requiredPreFund);
         return (context, validationData);
     }
 
