@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import { IEntryPoint } from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import { _packValidationData } from "@account-abstraction-v6/core/Helpers.sol";
 
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";

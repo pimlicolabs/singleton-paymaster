@@ -2,14 +2,11 @@
 pragma solidity ^0.8.26;
 
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
 import { _packValidationData } from "@account-abstraction-v7/core/Helpers.sol";
 import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
-import { UserOperationLib as UserOperationLibV07 } from "@account-abstraction-v7/core/UserOperationLib.sol";
 
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
@@ -33,8 +30,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    uint256 private immutable PAYMASTER_DATA_OFFSET = UserOperationLibV07.PAYMASTER_DATA_OFFSET;
-    uint256 private immutable PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLibV07.PAYMASTER_VALIDATION_GAS_OFFSET;
+    uint256 private immutable PAYMASTER_DATA_OFFSET = UserOperationLib.PAYMASTER_DATA_OFFSET;
+    uint256 private immutable PAYMASTER_VALIDATION_GAS_OFFSET = UserOperationLib.PAYMASTER_VALIDATION_GAS_OFFSET;
     uint256 private constant PENALTY_PERCENT = 10;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/

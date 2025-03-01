@@ -3,8 +3,6 @@ pragma solidity ^0.8.0;
 
 /* solhint-disable reason-string */
 import { BasePaymaster } from "./BasePaymaster.sol";
-import { IPaymasterV6 } from "../interfaces/IPaymasterV6.sol";
-import { PostOpMode } from "../interfaces/PostOpMode.sol";
 import { MultiSigner } from "./MultiSigner.sol";
 
 import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
@@ -12,12 +10,6 @@ import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import { ManagerAccessControl } from "./ManagerAccessControl.sol";
-import { IManagerAccessControl } from "./ManagerAccessControl.sol";
-import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 using UserOperationLib for PackedUserOperation;
 
