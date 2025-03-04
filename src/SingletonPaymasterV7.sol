@@ -99,7 +99,8 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - paymaster verification gas (16 bytes)
      * - paymaster postop gas (16 bytes)
      * - mode and allowAllBundlers (1 byte) - lowest bit represents allowAllBundlers, rest of the bits represent mode
-     * - constantFeePresent and recipientPresent (1 byte) - 000000{recipientPresent bit}{constantFeePresent bit}
+     * - constantFeePresent and recipientPresent and preFundPresent (1 byte) - 00000{preFundPresent
+     * bit}{recipientPresent bit}{constantFeePresent bit}
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - token address (20 bytes)
@@ -107,6 +108,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
+     * - preFund (16 bytes) - only if preFundPresent is 1
      * - constantFee (16 bytes - only if constantFeePresent is 1)
      * - recipient (20 bytes - only if recipientPresent is 1)
      * - signature (64 or 65 bytes)
@@ -189,7 +191,6 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint256 _requiredPreFund
     )
         internal
-        view
         returns (bytes memory, uint256)
     {
         ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
@@ -199,6 +200,16 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
+
+        uint256 costInToken = getCostInToken(_requiredPreFund, 0, 0, cfg.exchangeRate);
+
+        if (cfg.preFundInToken > costInToken) {
+            revert PreFundTooHigh();
+        }
+
+        if (cfg.preFundInToken > 0) {
+            SafeTransferLib.safeTransferFrom(cfg.token, _userOp.sender, cfg.treasury, cfg.preFundInToken);
+        }
 
         bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg, _requiredPreFund);
         return (context, validationData);
@@ -251,7 +262,16 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         uint256 costInToken =
             getCostInToken(actualGasCost, ctx.postOpGas, _actualUserOpFeePerGas, ctx.exchangeRate) + ctx.constantFee;
 
-        SafeTransferLib.safeTransferFrom(ctx.token, ctx.sender, ctx.treasury, costInToken);
+        uint256 absoluteCostInToken =
+            costInToken > ctx.preFundCharged ? costInToken - ctx.preFundCharged : ctx.preFundCharged - costInToken;
+
+        SafeTransferLib.safeTransferFrom(
+            ctx.token,
+            costInToken > ctx.preFundCharged ? ctx.sender : ctx.treasury,
+            costInToken > ctx.preFundCharged ? ctx.treasury : ctx.sender,
+            absoluteCostInToken
+        );
+
         uint256 preFundInToken = ctx.preFund * ctx.exchangeRate / 1e18;
 
         if (ctx.recipient != address(0) && preFundInToken > costInToken) {

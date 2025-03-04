@@ -17,7 +17,7 @@ interface IPaymasterV6 {
      * The paymaster pre-pays using its deposit, and receive back a refund after the postOp method returns.
      * @param userOp the user operation
      * @param userOpHash hash of the user's request data.
-     * @param maxCost the maximum cost of this transaction (based on maximum gas and gas price from userOp)
+     * @param requiredPreFund the maximum cost of this transaction (based on maximum gas and gas price from userOp)
      * @return context value to send to a postOp
      *      zero length to signify postOp is not required.
      * @return validationData signature and time-range of this operation, encoded the same as the return value of
@@ -31,7 +31,7 @@ interface IPaymasterV6 {
     function validatePaymasterUserOp(
         UserOperation calldata userOp,
         bytes32 userOpHash,
-        uint256 maxCost
+        uint256 requiredPreFund
     )
         external
         returns (bytes memory context, uint256 validationData);
