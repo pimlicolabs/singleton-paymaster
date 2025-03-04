@@ -303,6 +303,12 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             bool constantFeePresent = (combinedByte & 0x01) != 0;
             // recipientPresent is in the second lowest bit
             bool recipientPresent = (combinedByte & 0x02) != 0;
+            // preFundPresent is in the third lowest bit
+            bool preFundPresent = (combinedByte & 0x04) != 0;
+
+            if (preFundPresent) {
+                paymasterDataLength += 16;
+            }
 
             if (constantFeePresent) {
                 paymasterDataLength += 16;
