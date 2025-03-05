@@ -1166,6 +1166,16 @@ contract SingletonPaymasterV7Test is Test {
         flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1), uint128(0));
     }
 
+    function testValidateSignatureCorrectnessWithPreFund() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(0), uint128(1));
+    }
+
+    function testValidateSignatureCorrectnessWithConstantFeeAndRecipientAndPreFund() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(1), uint128(1));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0), uint128(1));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1), uint128(1));
+    }
+
     // HELPERS //
 
     function flipUserOperationBitsAndValidateSignature(
@@ -1187,7 +1197,7 @@ contract SingletonPaymasterV7Test is Test {
         if (_preFundPresent > 0) {
             token.sudoMint(address(account), 1000 * 1e18);
             token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
-            requiredPreFund = 1e10;
+            requiredPreFund = 1e18;
         }
 
         checkIsPaymasterSignatureValid(op, true, requiredPreFund);
@@ -1201,7 +1211,7 @@ contract SingletonPaymasterV7Test is Test {
                 if (_preFundPresent > 0) {
                     token.sudoMint(address(op.sender), 3000 * 1e18);
                     token.sudoApprove(address(op.sender), address(paymaster), UINT256_MAX);
-                    requiredPreFund = 1e10;
+                    requiredPreFund = 1e18;
                 }
                 checkIsPaymasterSignatureValid(op, false, requiredPreFund);
                 op.sender = address(bytes20(op.sender) ^ bytes20(uint160(mask)));

@@ -200,6 +200,11 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
+        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg, _requiredPreFund);
+
+        if (!isSignatureValid) {
+            return (context, validationData);
+        }
 
         uint256 costInToken = getCostInToken(_requiredPreFund, 0, 0, cfg.exchangeRate);
 
@@ -211,7 +216,6 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             SafeTransferLib.safeTransferFrom(cfg.token, _userOp.sender, cfg.treasury, cfg.preFundInToken);
         }
 
-        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg, _requiredPreFund);
         return (context, validationData);
     }
 
