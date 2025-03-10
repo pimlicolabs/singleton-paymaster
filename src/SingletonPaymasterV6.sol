@@ -2,7 +2,6 @@
 pragma solidity ^0.8.26;
 
 import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import { IEntryPoint } from "@account-abstraction-v6/interfaces/IEntryPoint.sol";
 import { _packValidationData } from "@account-abstraction-v6/core/Helpers.sol";
 
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
@@ -51,14 +50,14 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     function validatePaymasterUserOp(
         UserOperation calldata userOp,
         bytes32 userOpHash,
-        uint256 maxCost
+        uint256 requiredPreFund
     )
         external
         override
         returns (bytes memory context, uint256 validationData)
     {
         _requireFromEntryPoint();
-        return _validatePaymasterUserOp(userOp, userOpHash, maxCost);
+        return _validatePaymasterUserOp(userOp, userOpHash, requiredPreFund);
     }
 
     /// @inheritdoc IPaymasterV6
@@ -83,7 +82,8 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * @dev paymasterAndData for mode 1:
      * - paymaster address (20 bytes)
      * - mode and allowAllBundlers (1 byte) - lowest bit represents allowAllBundlers, rest of the bits represent mode
-     * - constantFeePresent and recipientPresent (1 byte) - 000000{recipientPresent bit}{constantFeePresent bit}
+     * - constantFeePresent and recipientPresent and preFundPresent (1 byte) - 0000{preFundPresent bit}{recipientPresent
+     * bit}{constantFeePresent bit}
      * - validUntil (6 bytes)
      * - validAfter (6 bytes)
      * - token address (20 bytes)
@@ -91,6 +91,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
      * - exchangeRate (32 bytes)
      * - paymasterValidationGasLimit (16 bytes)
      * - treasury (20 bytes)
+     * - preFund (16 bytes - only if preFundPresent is 1)
      * - constantFee (16 bytes - only if constantFeePresent is 1)
      * - recipient (20 bytes - only if recipientPresent is 1)
      * - signature (64 or 65 bytes)
@@ -99,7 +100,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     function _validatePaymasterUserOp(
         UserOperation calldata _userOp,
         bytes32 _userOpHash,
-        uint256 /* maxCost */
+        uint256 _requiredPreFund
     )
         internal
         returns (bytes memory, uint256)
@@ -123,7 +124,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         }
 
         if (mode == ERC20_MODE) {
-            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash);
+            (context, validationData) = _validateERC20Mode(_userOp, paymasterConfig, _userOpHash, _requiredPreFund);
         }
 
         return (context, validationData);
@@ -166,10 +167,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     function _validateERC20Mode(
         UserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
-        bytes32 _userOpHash
+        bytes32 _userOpHash,
+        uint256 _requiredPreFund
     )
         internal
-        view
         returns (bytes memory, uint256)
     {
         ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
@@ -179,36 +180,52 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
 
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, cfg.validUntil, cfg.validAfter);
+        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg, _requiredPreFund);
 
-        bytes memory context = _createPostOpContext(_userOp, _userOpHash, cfg);
+        if (!isSignatureValid) {
+            return (context, validationData);
+        }
+
+        uint256 costInToken = getCostInToken(_requiredPreFund, 0, 0, cfg.exchangeRate);
+
+        if (cfg.preFundInToken > costInToken) {
+            revert PreFundTooHigh();
+        }
+
+        if (cfg.preFundInToken > 0) {
+            SafeTransferLib.safeTransferFrom(cfg.token, _userOp.sender, cfg.treasury, cfg.preFundInToken);
+        }
+
         return (context, validationData);
     }
 
     /**
      * @notice Handles ERC-20 token payment.
      * @dev PostOp is skipped in verifying mode because paymaster's postOp isn't called when context is empty.
-     * @param _postOpMode The postOp mode.
      * @param _context The encoded ERC-20 paymaster context.
      * @param _actualGasCost The total gas cost (in wei) of this userOperation.
      */
-    function _postOp(PostOpMode _postOpMode, bytes calldata _context, uint256 _actualGasCost) internal {
-        if (_postOpMode == PostOpMode.postOpReverted) {
-            return;
-        }
-
+    function _postOp(PostOpMode, bytes calldata _context, uint256 _actualGasCost) internal {
         ERC20PostOpContext memory ctx = _parsePostOpContext(_context);
 
         uint256 actualUserOpFeePerGas = _calculateActualUserOpFeePerGas(ctx.maxFeePerGas, ctx.maxPriorityFeePerGas);
 
-        uint256 costInToken = getCostInToken(
-            _actualGasCost / actualUserOpFeePerGas, ctx.postOpGas, actualUserOpFeePerGas, ctx.exchangeRate
-        ) + ctx.constantFee;
+        uint256 costInToken =
+            getCostInToken(_actualGasCost, ctx.postOpGas, actualUserOpFeePerGas, ctx.exchangeRate) + ctx.constantFee;
+
+        uint256 tokenToTransfer =
+            costInToken > ctx.preFundCharged ? costInToken - ctx.preFundCharged : ctx.preFundCharged - costInToken;
 
         // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
         // it will revert the whole bundle instead of just force failing the userOperation.
         // To avoid this we need to use `trySafeTransferFrom` to catch when it revert and throw a custom
         // revert with more than 32 bytes. More info: https://github.com/eth-infinitism/account-abstraction/pull/293
-        bool success = SafeTransferLib.trySafeTransferFrom(ctx.token, ctx.sender, ctx.treasury, costInToken);
+        bool success = SafeTransferLib.trySafeTransferFrom(
+            ctx.token,
+            costInToken > ctx.preFundCharged ? ctx.sender : ctx.treasury,
+            costInToken > ctx.preFundCharged ? ctx.treasury : ctx.sender,
+            tokenToTransfer
+        );
 
         if (!success) {
             revert PostOpTransferFromFailed("TRANSFER_FROM_FAILED");
@@ -278,6 +295,12 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             bool constantFeePresent = (combinedByte & 0x01) != 0;
             // recipientPresent is in the second lowest bit
             bool recipientPresent = (combinedByte & 0x02) != 0;
+            // preFundPresent is in the third lowest bit
+            bool preFundPresent = (combinedByte & 0x04) != 0;
+
+            if (preFundPresent) {
+                paymasterDataLength += 16;
+            }
 
             if (constantFeePresent) {
                 paymasterDataLength += 16;
@@ -314,6 +337,6 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             )
         );
 
-        return keccak256(abi.encode(userOpHash, block.chainid, address(this)));
+        return keccak256(abi.encode(userOpHash, block.chainid));
     }
 }

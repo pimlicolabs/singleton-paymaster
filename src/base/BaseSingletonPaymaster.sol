@@ -3,8 +3,6 @@ pragma solidity ^0.8.0;
 
 /* solhint-disable reason-string */
 import { BasePaymaster } from "./BasePaymaster.sol";
-import { IPaymasterV6 } from "../interfaces/IPaymasterV6.sol";
-import { PostOpMode } from "../interfaces/PostOpMode.sol";
 import { MultiSigner } from "./MultiSigner.sol";
 
 import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
@@ -12,12 +10,6 @@ import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 
 import { ManagerAccessControl } from "./ManagerAccessControl.sol";
-import { IManagerAccessControl } from "./ManagerAccessControl.sol";
-import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
-import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
-
-import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
-import { SignatureCheckerLib } from "solady/utils/SignatureCheckerLib.sol";
 
 using UserOperationLib for PackedUserOperation;
 
@@ -41,6 +33,8 @@ struct ERC20PostOpContext {
     uint256 maxPriorityFeePerGas;
     /// @dev The pre fund of the userOperation.
     uint256 preFund;
+    /// @dev The pre fund of the userOperation that was charged.
+    uint256 preFundCharged;
     /// @dev The total allowed execution gas limit, i.e the sum of the callGasLimit and postOpGasLimit.
     uint256 executionGasLimit;
     /// @dev Estimate of the gas used before the userOp is executed.
@@ -69,6 +63,8 @@ struct ERC20PaymasterData {
     bytes signature;
     /// @dev The paymasterValidationGasLimit to be used in the postOp.
     uint128 paymasterValidationGasLimit;
+    /// @dev The preFund of the userOperation.
+    uint256 preFundInToken;
     /// @dev A constant fee that is added to the userOp's gas cost.
     uint128 constantFee;
     /// @dev The recipient of the tokens.
@@ -110,6 +106,9 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
     /// @dev We need to throw with params due to this bug in EntryPoint v0.6:
     /// https://github.com/eth-infinitism/account-abstraction/pull/293
     error PostOpTransferFromFailed(string msg);
+
+    /// @notice The preFund is too high.
+    error PreFundTooHigh();
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                           EVENTS                           */
@@ -260,6 +259,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         bool constantFeePresent = (combinedByte & 0x01) != 0;
         // recipientPresent is in the second lowest bit
         bool recipientPresent = (combinedByte & 0x02) != 0;
+        // preFundPresent is in the third lowest bit
+        bool preFundPresent = (combinedByte & 0x04) != 0;
         configPointer += 1;
         config.validUntil = uint48(bytes6(_paymasterConfig[configPointer:configPointer + 6])); // 6 bytes
         configPointer += 6;
@@ -277,6 +278,15 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         config.treasury = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
         configPointer += 20;
 
+        config.preFundInToken = uint256(0);
+        if (preFundPresent) {
+            if (_paymasterConfig.length < configPointer + 16) {
+                revert PaymasterConfigLengthInvalid();
+            }
+
+            config.preFundInToken = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16 bytes
+            configPointer += 16;
+        }
         config.constantFee = uint128(0);
         if (constantFeePresent) {
             if (_paymasterConfig.length < configPointer + 16) {
@@ -296,7 +306,6 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
             config.recipient = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
             configPointer += 20;
         }
-
         config.signature = _paymasterConfig[configPointer:];
 
         if (config.token == address(0)) {
@@ -349,37 +358,6 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         return (validUntil, validAfter, signature);
     }
 
-    function _getRequiredPrefund(UserOperation calldata _userOp) internal pure returns (uint256 requiredPrefund) {
-        unchecked {
-            //when using a Paymaster, the verificationGasLimit is used also to as a limit for the postOp call.
-            // our security model might call postOp eventually twice
-            uint256 mul = _userOp.paymasterAndData.length >= 20 ? 3 : 1;
-            uint256 requiredGas = _userOp.callGasLimit + _userOp.verificationGasLimit * mul + _userOp.preVerificationGas;
-
-            requiredPrefund = requiredGas * _userOp.maxFeePerGas;
-        }
-    }
-
-    /**
-     * Get the required prefunded gas fee amount for an operation.
-     * @param _userOp - The user operation in calldata.
-     */
-    function _getRequiredPrefund(
-        PackedUserOperation calldata _userOp
-    )
-        internal
-        pure
-        returns (uint256 requiredPrefund)
-    {
-        unchecked {
-            uint256 requiredGas = _userOp.unpackVerificationGasLimit() + _userOp.unpackCallGasLimit()
-                + _userOp.unpackPaymasterVerificationGasLimit() + _userOp.unpackPostOpGasLimit()
-                + _userOp.preVerificationGas;
-
-            requiredPrefund = requiredGas * _userOp.unpackMaxFeePerGas();
-        }
-    }
-
     /**
      * @notice Helper function to encode the postOp context data for V6 userOperations.
      * @param _userOp The userOperation.
@@ -390,7 +368,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
     function _createPostOpContext(
         UserOperation calldata _userOp,
         bytes32 _userOpHash,
-        ERC20PaymasterData memory _cfg
+        ERC20PaymasterData memory _cfg,
+        uint256 _requiredPreFund
     )
         internal
         pure
@@ -415,7 +394,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
                 maxPriorityFeePerGas: _userOp.maxPriorityFeePerGas,
                 preOpGasApproximation: uint256(0), // for v0.6 userOperations, we don't need this due to no penalty.
                 executionGasLimit: uint256(0),
-                preFund: _getRequiredPrefund(_userOp),
+                preFund: _requiredPreFund,
+                preFundCharged: _cfg.preFundInToken,
                 constantFee: constantFee,
                 recipient: recipient
             })
@@ -432,7 +412,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
     function _createPostOpContext(
         PackedUserOperation calldata _userOp,
         bytes32 _userOpHash,
-        ERC20PaymasterData memory _cfg
+        ERC20PaymasterData memory _cfg,
+        uint256 _requiredPreFund
     )
         internal
         pure
@@ -459,7 +440,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
                 maxFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 maxPriorityFeePerGas: uint256(0), // for v0.7 userOperations, the gasPrice is passed in the postOp.
                 executionGasLimit: executionGasLimit,
-                preFund: _getRequiredPrefund(_userOp),
+                preFund: _requiredPreFund,
+                preFundCharged: _cfg.preFundInToken,
                 preOpGasApproximation: preOpGasApproximation,
                 constantFee: _cfg.constantFee,
                 recipient: _cfg.recipient

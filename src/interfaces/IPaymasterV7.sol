@@ -1,10 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import {
-    UserOperationLib as UserOperationLibV07,
-    PackedUserOperation
-} from "@account-abstraction-v7/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v7/core/UserOperationLib.sol";
 import { PostOpMode } from "./PostOpMode.sol";
 
 /**
