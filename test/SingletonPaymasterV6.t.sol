@@ -91,7 +91,7 @@ contract SingletonPaymasterV6Test is Test {
         paymaster.addSigner(paymasterSigner);
     }
 
-    function testDeployment() external {
+    function test_Deployment() external {
         SingletonPaymasterV6 subject =
             new SingletonPaymasterV6(address(entryPoint), paymasterOwner, manager, new address[](0));
         vm.prank(paymasterOwner);
@@ -101,14 +101,14 @@ contract SingletonPaymasterV6Test is Test {
         assertTrue(subject.signers(paymasterSigner));
     }
 
-    function testERC20Success() external {
+    function test_ERC20Success() external {
         setupERC20Environment(UINT256_MAX);
 
         // treasury should have no tokens
         assertEq(token.balanceOf(treasury), 0);
 
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0));
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -124,14 +124,14 @@ contract SingletonPaymasterV6Test is Test {
         assertGt(token.balanceOf(treasury), 0);
     }
 
-    function testERC20WithConstantFeeSuccess() external {
+    function test_ERC20WithConstantFeeSuccess() external {
         setupERC20Environment(UINT256_MAX);
 
         // treasury should have no tokens
         assertEq(token.balanceOf(treasury), 0);
 
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(1), uint8(0));
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(1), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -147,9 +147,10 @@ contract SingletonPaymasterV6Test is Test {
         assertGt(token.balanceOf(treasury), 0);
     }
 
-    function testVerifyingSuccess() external {
+    function test_VerifyingSuccess() external {
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(VERIFYING_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0));
+        op.paymasterAndData =
+            getSignedPaymasterData(VERIFYING_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -165,7 +166,16 @@ contract SingletonPaymasterV6Test is Test {
         // sign with random private key to force false signature
         PaymasterData memory data = PaymasterData(address(paymaster), 0, 0, ALLOW_ALL_BUNDLERS);
         op.paymasterAndData = getERC20ModeData(
-            data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), op, unauthorizedSignerKey, uint8(0), uint8(0)
+            data,
+            address(token),
+            POSTOP_GAS,
+            EXCHANGE_RATE,
+            uint128(0),
+            op,
+            unauthorizedSignerKey,
+            uint8(0),
+            uint8(0),
+            uint8(0)
         );
         op.signature = signUserOp(op, userKey);
 
@@ -179,7 +189,16 @@ contract SingletonPaymasterV6Test is Test {
         // sign with random private key to force false signature
         PaymasterData memory data = PaymasterData(address(paymaster), 0, 0, ALLOW_ALL_BUNDLERS);
         op.paymasterAndData = getERC20ModeData(
-            data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), op, unauthorizedSignerKey, uint8(1), uint8(0)
+            data,
+            address(token),
+            POSTOP_GAS,
+            EXCHANGE_RATE,
+            uint128(0),
+            op,
+            unauthorizedSignerKey,
+            uint8(1),
+            uint8(0),
+            uint8(0)
         );
         op.signature = signUserOp(op, userKey);
 
@@ -199,14 +218,14 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
     }
 
-    function testERC20LegacySuccess() external {
+    function test_ERC20LegacySuccess() external {
         setupERC20Environment(UINT256_MAX);
 
         // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
         UserOperation memory op = fillUserOp();
         op.maxPriorityFeePerGas = 5;
         op.maxFeePerGas = 5;
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0));
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -219,14 +238,35 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
     }
 
-    function testERC20WithConstantFeeLegacySuccess() external {
+    function test_ERC20WithConstantFeeLegacySuccess() external {
         setupERC20Environment(UINT256_MAX);
 
         // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
         UserOperation memory op = fillUserOp();
         op.maxPriorityFeePerGas = 5;
         op.maxFeePerGas = 5;
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(1), uint8(0));
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(1), uint8(0), uint8(0));
+        op.signature = signUserOp(op, userKey);
+
+        // check that UserOperationSponsored log is emitted.
+        // event data check is skipped because we don't know how much will be spent.
+        vm.expectEmit(true, true, true, false, address(paymaster));
+        emit BaseSingletonPaymaster.UserOperationSponsored(
+            getOpHash(op), op.sender, ERC20_MODE, address(token), 0, EXCHANGE_RATE
+        );
+
+        submitUserOp(op);
+    }
+
+    function test_ERC20WithPrefund() external {
+        setupERC20Environment(UINT256_MAX);
+
+        // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
+        UserOperation memory op = fillUserOp();
+        op.maxPriorityFeePerGas = 5;
+        op.maxFeePerGas = 5;
+        op.paymasterAndData =
+            getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint128(1_000_000));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -275,13 +315,15 @@ contract SingletonPaymasterV6Test is Test {
     function test_RevertWhen_PaymasterSignatureLengthInvalid(
         uint8 _mode,
         uint8 _constantFeePresent,
-        uint8 _recipientPresent
+        uint8 _recipientPresent,
+        uint128 _preFundPresent
     )
         external
     {
         uint8 mode = uint8(bound(_mode, 0, 1));
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
+        uint128 preFundPresent = uint128(bound(_preFundPresent, 0, 1));
         setupERC20Environment(UINT256_MAX);
 
         UserOperation memory op = fillUserOp();
@@ -300,7 +342,10 @@ contract SingletonPaymasterV6Test is Test {
             op.paymasterAndData = abi.encodePacked(
                 address(paymaster), // paymaster
                 uint8((ALLOW_ALL_BUNDLERS & 0x01) | (mode << 1)),
-                uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
+                uint8(
+                    (constantFeePresent == 1 ? 1 : 0) | (recipientPresent == 1 ? 1 << 1 : 0)
+                        | (preFundPresent > 0 ? 1 << 2 : 0)
+                ),
                 uint48(0), // validUntil
                 int48(0), // validAfter
                 address(token), // token
@@ -309,6 +354,10 @@ contract SingletonPaymasterV6Test is Test {
                 uint128(0), // paymasterValidationGasLimit
                 treasury // treasury
             );
+
+            if (preFundPresent > 0) {
+                op.paymasterAndData = abi.encodePacked(op.paymasterAndData, preFundPresent);
+            }
 
             if (constantFeePresent == 1) {
                 op.paymasterAndData = abi.encodePacked(
@@ -336,21 +385,33 @@ contract SingletonPaymasterV6Test is Test {
 
     // ERC20 mode specific errors
 
-    function test_RevertWhen_PostOpTransferFromFailed(uint8 _constantFeePresent, uint8 _recipientPresent) external {
+    function test_RevertWhen_PostOpTransferFromFailed(
+        uint8 _constantFeePresent,
+        uint8 _recipientPresent,
+        uint128 _preFundPresent
+    )
+        external
+    {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
+        uint128 preFundPresent = uint128(bound(_preFundPresent, 0, 1));
 
         UserOperation memory op = fillUserOp();
 
-        op.paymasterAndData =
-            getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, constantFeePresent, recipientPresent);
+        op.paymasterAndData = getSignedPaymasterData(
+            ERC20_MODE, ALLOW_ALL_BUNDLERS, op, constantFeePresent, recipientPresent, preFundPresent
+        );
         op.signature = signUserOp(op, userKey);
 
-        uint256 nonce = 0;
-        bool userOpSuccess = false; // this is what we are checking (userOperation should be false if postOp reverts).
-        vm.expectEmit(true, true, true, false, address(entryPoint));
-        emit IEntryPoint.UserOperationEvent(getOpHash(op), op.sender, address(paymaster), nonce, userOpSuccess, 0, 0);
-
+        if (preFundPresent > 0) {
+            vm.expectRevert(
+                abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), string("AA33 reverted (or OOG)"))
+            );
+        } else {
+            vm.expectRevert(
+                abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), string("AA50 postOp revert"))
+            );
+        }
         submitUserOp(op);
 
         // check that treasury has no tokens
@@ -360,9 +421,16 @@ contract SingletonPaymasterV6Test is Test {
         }
     }
 
-    function test_RevertWhen_TokenAddressInvalid(uint8 _constantFeePresent, uint8 _recipientPresent) external {
+    function test_RevertWhen_TokenAddressInvalid(
+        uint8 _constantFeePresent,
+        uint8 _recipientPresent,
+        uint128 _preFundPresent
+    )
+        external
+    {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
+        uint128 preFundPresent = uint128(bound(_preFundPresent, 0, 1));
         setupERC20Environment(UINT256_MAX);
 
         UserOperation memory op = fillUserOp();
@@ -370,7 +438,10 @@ contract SingletonPaymasterV6Test is Test {
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
             uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
-            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
+            uint8(
+                (constantFeePresent == 1 ? 1 : 0) | (recipientPresent == 1 ? 1 << 1 : 0)
+                    | (preFundPresent > 0 ? 1 << 2 : 0)
+            ),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(0), // **will throw here, token address cannot be zero.**
@@ -379,6 +450,10 @@ contract SingletonPaymasterV6Test is Test {
             uint128(0), // paymasterValidationGasLimit
             treasury // treasury
         );
+
+        if (preFundPresent > 0) {
+            op.paymasterAndData = abi.encodePacked(op.paymasterAndData, preFundPresent);
+        }
 
         if (constantFeePresent == 1) {
             op.paymasterAndData = abi.encodePacked(
@@ -403,16 +478,26 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
     }
 
-    function test_RevertWhen_ExchangeRateInvalid(uint8 _constantFeePresent, uint8 _recipientPresent) external {
+    function test_RevertWhen_ExchangeRateInvalid(
+        uint8 _constantFeePresent,
+        uint8 _recipientPresent,
+        uint128 _preFundPresent
+    )
+        external
+    {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
+        uint128 preFundPresent = uint128(bound(_preFundPresent, 0, 1));
 
         UserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
             uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
-            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
+            uint8(
+                (constantFeePresent == 1 ? 1 : 0) | (recipientPresent == 1 ? 1 << 1 : 0)
+                    | (preFundPresent > 0 ? 1 << 2 : 0)
+            ),
             uint48(0), // validUntil
             uint48(0), // validAfter
             address(token), // token
@@ -421,6 +506,10 @@ contract SingletonPaymasterV6Test is Test {
             uint128(0), // paymasterValidationGasLimit
             treasury // treasury
         );
+
+        if (preFundPresent > 0) {
+            op.paymasterAndData = abi.encodePacked(op.paymasterAndData, preFundPresent);
+        }
 
         if (constantFeePresent == 1) {
             op.paymasterAndData = abi.encodePacked(
@@ -451,18 +540,31 @@ contract SingletonPaymasterV6Test is Test {
         vm.expectRevert();
         submitUserOp(op);
 
-        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(0), uint8(1));
-        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(0));
-        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(1));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(0), uint8(1), uint128(0));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(0), uint128(0));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(1), uint128(0));
+
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(0), uint8(1), uint128(1_000_000));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(0), uint128(1_000_000));
+        test_RevertWhen_PaymasterAndDataLengthInvalid(uint8(1), uint8(1), uint128(1_000_000));
     }
 
-    function test_RevertWhen_PaymasterAndDataLengthInvalid(uint8 constantFeePresent, uint8 recipientPresent) internal {
+    function test_RevertWhen_PaymasterAndDataLengthInvalid(
+        uint8 constantFeePresent,
+        uint8 recipientPresent,
+        uint128 preFundPresent
+    )
+        internal
+    {
         UserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
             uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
-            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
+            uint8(
+                (constantFeePresent == 1 ? 1 : 0) | (recipientPresent == 1 ? 1 << 1 : 0)
+                    | (preFundPresent > 0 ? 1 << 2 : 0)
+            ),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -501,16 +603,20 @@ contract SingletonPaymasterV6Test is Test {
         submitUserOp(op);
     }
 
-    function test_RevertWhen_InvalidRecipient(uint8 _constantFeePresent) external {
+    function test_RevertWhen_InvalidRecipient(uint8 _constantFeePresent, uint128 _preFundPresent) external {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
-        uint8 recipientPresent = uint8(1);
+        uint8 recipientPresent = 1;
+        uint128 preFundPresent = uint128(bound(_preFundPresent, 0, 1));
 
         UserOperation memory op = fillUserOp();
 
         op.paymasterAndData = abi.encodePacked(
             address(paymaster), // paymaster
             uint8((ALLOW_ALL_BUNDLERS & 0x01) | (ERC20_MODE << 1)),
-            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
+            uint8(
+                (constantFeePresent == 1 ? 1 : 0) | (recipientPresent == 1 ? 1 << 1 : 0)
+                    | (preFundPresent > 0 ? 1 << 2 : 0)
+            ),
             uint48(0), // validUntil
             int48(0), // validAfter
             address(token), // token
@@ -524,6 +630,10 @@ contract SingletonPaymasterV6Test is Test {
             uint128(0), // paymasterValidationGasLimit
             treasury // treasury
         );
+
+        if (preFundPresent > 0) {
+            op.paymasterAndData = abi.encodePacked(op.paymasterAndData, preFundPresent);
+        }
 
         if (constantFeePresent == 1) {
             op.paymasterAndData = abi.encodePacked(
@@ -600,6 +710,7 @@ contract SingletonPaymasterV6Test is Test {
                 maxFeePerGas: maxFeePerGas,
                 maxPriorityFeePerGas: maxPriorityFeePerGas,
                 preFund: preFund,
+                preFundCharged: uint256(0),
                 executionGasLimit: uint256(0),
                 preOpGasApproximation: uint256(0),
                 constantFee: uint128(0),
@@ -623,7 +734,8 @@ contract SingletonPaymasterV6Test is Test {
         assertEq(token.balanceOf(paymasterOwner), 0);
 
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op, uint8(0), uint8(0));
+        op.paymasterAndData =
+            getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -647,7 +759,8 @@ contract SingletonPaymasterV6Test is Test {
         paymaster.updateBundlerAllowlist(bundlers, true);
 
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op, uint8(0), uint8(0));
+        op.paymasterAndData =
+            getSignedPaymasterData(ERC20_MODE, ALLOW_WHITELISTED_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -661,6 +774,21 @@ contract SingletonPaymasterV6Test is Test {
 
         // treasury should now have tokens
         assertGt(token.balanceOf(treasury), 0);
+    }
+
+    function test_RevertWhen_ERC20WithPreFundExceedsRequiredPreFund() external {
+        setupERC20Environment(UINT256_MAX);
+
+        // on chains that don't support EIP-1559, the UserOperation's maxFee & maxPriorityFee are equal.
+        UserOperation memory op = fillUserOp();
+        op.maxPriorityFeePerGas = 5;
+        op.maxFeePerGas = 5;
+        op.paymasterAndData =
+            getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint128(10_000_000_000));
+        op.signature = signUserOp(op, userKey);
+
+        vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA33 reverted (or OOG)"));
+        submitUserOp(op);
     }
 
     // context and validation data should be properly encoded in Verifying mode.
@@ -708,14 +836,16 @@ contract SingletonPaymasterV6Test is Test {
         uint128 _postOpGas,
         uint256 _exchangeRate,
         uint8 _constantFeePresent,
-        uint8 _recipientPresent
+        uint8 _recipientPresent,
+        uint128 _preFundPresent
     )
         external
     {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
-
+        uint128 preFundPresent = uint128(bound(_preFundPresent, 0, 1));
         vm.assume(_exchangeRate > 0);
+        vm.assume(_exchangeRate < 1e24);
         vm.assume(_token != address(0));
 
         UserOperation memory op = fillUserOp();
@@ -723,12 +853,30 @@ contract SingletonPaymasterV6Test is Test {
 
         // Test with correct signature
         validateERC20PaymasterUserOp(
-            op, data, _token, _postOpGas, _exchangeRate, 0, paymasterSignerKey, constantFeePresent, recipientPresent
+            op,
+            data,
+            _token,
+            _postOpGas,
+            _exchangeRate,
+            0,
+            paymasterSignerKey,
+            constantFeePresent,
+            recipientPresent,
+            preFundPresent
         );
 
         // Test with incorrect signature
         validateERC20PaymasterUserOp(
-            op, data, _token, _postOpGas, _exchangeRate, 1, unauthorizedSignerKey, constantFeePresent, recipientPresent
+            op,
+            data,
+            _token,
+            _postOpGas,
+            _exchangeRate,
+            1,
+            unauthorizedSignerKey,
+            constantFeePresent,
+            recipientPresent,
+            preFundPresent
         );
     }
 
@@ -746,7 +894,7 @@ contract SingletonPaymasterV6Test is Test {
             // remove the approve during execution phase
             abi.encodeWithSelector(TestERC20.sudoApprove.selector, address(account), address(paymaster), 0)
         );
-        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0));
+        op.paymasterAndData = getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
@@ -772,15 +920,16 @@ contract SingletonPaymasterV6Test is Test {
         uint256 _constantFee,
         uint8 _constantFeePresent,
         uint8 _recipientPresent,
-        uint256 _preFund
+        uint256 _preFund,
+        uint256 _preFundCharged
     )
         external
     {
         token.sudoMint(address(account), 1e50);
         token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
-
+        token.sudoApprove(address(treasury), address(paymaster), UINT256_MAX);
+        token.sudoMint(address(treasury), 1e50);
         vm.assertEq(0, token.balanceOf(recipient));
-        vm.assertEq(0, token.balanceOf(treasury));
 
         uint128 postOpGas = uint128(bound(_postOpGas, 21_000, 250_000));
         uint256 userOperationGasUsed = bound(_userOperationGasUsed, 21_000, 30_000_000);
@@ -803,6 +952,7 @@ contract SingletonPaymasterV6Test is Test {
 
         uint256 actualGasCost = userOperationGasUsed * actualUserOpFeePerGas;
         uint256 preFund = bound(_preFund, actualGasCost, actualGasCost * 2);
+        uint256 preFundCharged = uint256(bound(_preFundCharged, 0 gwei, (preFund * exchangeRate) / 1e18));
 
         bytes memory context = abi.encode(
             ERC20PostOpContext({
@@ -815,6 +965,7 @@ contract SingletonPaymasterV6Test is Test {
                 maxFeePerGas: maxFeePerGas,
                 maxPriorityFeePerGas: maxPriorityFeePerGas,
                 preFund: preFund,
+                preFundCharged: preFundCharged,
                 executionGasLimit: uint256(0),
                 preOpGasApproximation: uint256(0),
                 constantFee: constantFeePresent == 1 ? constantFee : uint128(0),
@@ -822,17 +973,53 @@ contract SingletonPaymasterV6Test is Test {
             })
         );
 
+        validatePostOpCalculation(
+            context,
+            actualGasCost,
+            postOpGas,
+            actualUserOpFeePerGas,
+            exchangeRate,
+            constantFee,
+            constantFeePresent,
+            recipientPresent,
+            preFund,
+            preFundCharged
+        );
+    }
+
+    function validatePostOpCalculation(
+        bytes memory context,
+        uint256 actualGasCost,
+        uint128 postOpGas,
+        uint256 actualUserOpFeePerGas,
+        uint256 exchangeRate,
+        uint128 constantFee,
+        uint8 constantFeePresent,
+        uint8 recipientPresent,
+        uint256 preFund,
+        uint256 preFundCharged
+    )
+        internal
+    {
+        uint256 balanceOfTreasury = token.balanceOf(treasury);
         vm.prank(address(entryPoint));
         paymaster.postOp(PostOpMode.opSucceeded, context, actualGasCost);
         uint256 expectedCostInTokenWithoutConstantFee =
             paymaster.getCostInToken(actualGasCost, postOpGas, actualUserOpFeePerGas, exchangeRate);
 
-        uint256 expectedCostInToken = constantFeePresent == 1
-            ? expectedCostInTokenWithoutConstantFee + constantFee
-            : expectedCostInTokenWithoutConstantFee;
+        uint256 expectedCostInToken = expectedCostInTokenWithoutConstantFee;
 
-        // TODO: Check when preOpGasApproximation is not 0
-        vm.assertEq(expectedCostInToken, token.balanceOf(treasury));
+        if (constantFeePresent == 1) {
+            expectedCostInToken = expectedCostInTokenWithoutConstantFee + constantFee;
+        }
+
+        if (preFundCharged <= expectedCostInToken) {
+            vm.assertEq(expectedCostInToken - preFundCharged + balanceOfTreasury, token.balanceOf(treasury));
+        }
+
+        if (preFundCharged > expectedCostInToken) {
+            vm.assertEq(balanceOfTreasury - (preFundCharged - expectedCostInToken), token.balanceOf(treasury));
+        }
 
         uint256 preFundInToken = preFund * exchangeRate / 1e18;
         if (recipientPresent == 1 && preFundInToken > expectedCostInToken) {
@@ -851,18 +1038,35 @@ contract SingletonPaymasterV6Test is Test {
         uint160 expectedSignature,
         uint256 signerKey,
         uint8 constantFeePresent,
-        uint8 recipientPresent
+        uint8 recipientPresent,
+        uint128 preFundPresent
     )
         internal
     {
+        if (preFundPresent > 0) {
+            tokenAddress = address(token);
+            token.sudoMint(address(account), 1e18);
+            token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
+        }
+
         op.paymasterAndData = getERC20ModeData(
-            data, tokenAddress, postOpGas, exchangeRate, uint128(0), op, signerKey, constantFeePresent, recipientPresent
+            data,
+            tokenAddress,
+            postOpGas,
+            exchangeRate,
+            uint128(0),
+            op,
+            signerKey,
+            constantFeePresent,
+            recipientPresent,
+            preFundPresent
         );
         op.signature = signUserOp(op, userKey);
         bytes32 opHash = getOpHash(op);
 
+        uint256 requiredPreFund = 1 * 1e18;
         vm.prank(address(entryPoint));
-        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0);
+        (bytes memory context, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, requiredPreFund);
 
         // Validation checks
         vm.assertEq(uint160(validationData), expectedSignature, "unexpected signature");
@@ -870,6 +1074,33 @@ contract SingletonPaymasterV6Test is Test {
         vm.assertEq(uint48(validationData >> (48 + 160)), data.validAfter);
 
         // Context checks
+        validateContext(
+            context,
+            op,
+            tokenAddress,
+            exchangeRate,
+            postOpGas,
+            opHash,
+            constantFeePresent,
+            recipientPresent,
+            preFundPresent
+        );
+    }
+
+    function validateContext(
+        bytes memory context,
+        UserOperation memory op,
+        address tokenAddress,
+        uint256 exchangeRate,
+        uint128 postOpGas,
+        bytes32 opHash,
+        uint8 constantFeePresent,
+        uint8 recipientPresent,
+        uint128 preFundPresent
+    )
+        internal
+        view
+    {
         ERC20PostOpContext memory ctx = abi.decode(context, (ERC20PostOpContext));
         vm.assertEq(ctx.sender, op.sender, "encoded context sender should equal userOperation.sender");
         vm.assertEq(ctx.token, tokenAddress, "encoded context token should equal token");
@@ -887,17 +1118,33 @@ contract SingletonPaymasterV6Test is Test {
             constantFeePresent == 1 ? uint256(1) : uint256(0),
             "encoded context constantFee should equal constantFee"
         );
+        vm.assertEq(
+            ctx.recipient,
+            recipientPresent == 1 ? recipient : address(0),
+            "encoded context recipient should equal recipient"
+        );
+        vm.assertEq(ctx.preFundCharged, preFundPresent, "encoded context preFund should equal preFundPresent");
     }
 
-    function testValidateSignatureCorrectness() external {
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(0));
-        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(0), uint8(0));
+    function test_ValidateSignatureCorrectness() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(0), uint128(0));
+        flipUserOperationBitsAndValidateSignature(VERIFYING_MODE, uint8(0), uint8(0), uint128(0));
     }
 
-    function testValidateSignatureCorrectnessWithConstantFeeAndRecipient() external {
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(1));
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0));
-        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1));
+    function test_ValidateSignatureCorrectnessWithConstantFeeAndRecipient() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(1), uint128(0));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0), uint128(0));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1), uint128(0));
+    }
+
+    function testValidateSignatureCorrectnessWithPreFund() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(0), uint128(1));
+    }
+
+    function testValidateSignatureCorrectnessWithConstantFeeAndRecipientAndPreFund() external {
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(0), uint8(1), uint128(1));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(0), uint128(1));
+        flipUserOperationBitsAndValidateSignature(ERC20_MODE, uint8(1), uint8(1), uint128(1));
     }
 
     // HELPERS //
@@ -905,16 +1152,26 @@ contract SingletonPaymasterV6Test is Test {
     function flipUserOperationBitsAndValidateSignature(
         uint8 _mode,
         uint8 _constantFeePresent,
-        uint8 _recipientPresent
+        uint8 _recipientPresent,
+        uint128 _preFundPresent
     )
         internal
     {
         UserOperation memory op = fillUserOp();
-        op.paymasterAndData =
-            getSignedPaymasterData(_mode, ALLOW_ALL_BUNDLERS, op, _constantFeePresent, _recipientPresent);
+        op.paymasterAndData = getSignedPaymasterData(
+            _mode, ALLOW_ALL_BUNDLERS, op, _constantFeePresent, _recipientPresent, _preFundPresent
+        );
         op.signature = signUserOp(op, userKey);
 
-        checkIsPaymasterSignatureValid(op, true);
+        uint256 requiredPreFund = 0;
+
+        if (_preFundPresent > 0) {
+            token.sudoMint(address(account), 1000 * 1e18);
+            token.sudoApprove(address(account), address(paymaster), UINT256_MAX);
+            requiredPreFund = 1e18;
+        }
+
+        checkIsPaymasterSignatureValid(op, true, requiredPreFund);
 
         // flip each bit in userOperation and check that signature is invalid
         for (uint256 bitPosition = 0; bitPosition < 256; bitPosition++) {
@@ -922,32 +1179,37 @@ contract SingletonPaymasterV6Test is Test {
 
             if (bitPosition < 160) {
                 op.sender = address(bytes20(op.sender) ^ bytes20(uint160(mask)));
-                checkIsPaymasterSignatureValid(op, false);
+                if (_preFundPresent > 0) {
+                    token.sudoMint(address(op.sender), 3000 * 1e18);
+                    token.sudoApprove(address(op.sender), address(paymaster), UINT256_MAX);
+                    requiredPreFund = 1e18;
+                }
+                checkIsPaymasterSignatureValid(op, false, requiredPreFund);
                 op.sender = address(bytes20(op.sender) ^ bytes20(uint160(mask)));
             }
 
             op.nonce = uint256(bytes32(op.nonce) ^ bytes32(mask));
-            checkIsPaymasterSignatureValid(op, false);
+            checkIsPaymasterSignatureValid(op, false, requiredPreFund);
             op.nonce = uint256(bytes32(op.nonce) ^ bytes32(mask));
 
             op.callGasLimit = uint256(bytes32(op.callGasLimit) ^ bytes32(mask));
-            checkIsPaymasterSignatureValid(op, false);
+            checkIsPaymasterSignatureValid(op, false, requiredPreFund);
             op.callGasLimit = uint256(bytes32(op.callGasLimit) ^ bytes32(mask));
 
             op.preVerificationGas = uint256(bytes32(op.preVerificationGas) ^ bytes32(mask));
-            checkIsPaymasterSignatureValid(op, false);
+            checkIsPaymasterSignatureValid(op, false, requiredPreFund);
             op.preVerificationGas = uint256(bytes32(op.preVerificationGas) ^ bytes32(mask));
 
             op.verificationGasLimit = uint256(bytes32(op.verificationGasLimit) ^ bytes32(mask));
-            checkIsPaymasterSignatureValid(op, false);
+            checkIsPaymasterSignatureValid(op, false, requiredPreFund);
             op.verificationGasLimit = uint256(bytes32(op.verificationGasLimit) ^ bytes32(mask));
 
             op.maxFeePerGas = uint256(bytes32(op.maxFeePerGas) ^ bytes32(mask));
-            checkIsPaymasterSignatureValid(op, false);
+            checkIsPaymasterSignatureValid(op, false, requiredPreFund);
             op.maxFeePerGas = uint256(bytes32(op.maxFeePerGas) ^ bytes32(mask));
 
             op.maxPriorityFeePerGas = uint256(bytes32(op.maxPriorityFeePerGas) ^ bytes32(mask));
-            checkIsPaymasterSignatureValid(op, false);
+            checkIsPaymasterSignatureValid(op, false, requiredPreFund);
             op.maxPriorityFeePerGas = uint256(bytes32(op.maxPriorityFeePerGas) ^ bytes32(mask));
         }
 
@@ -957,7 +1219,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint256 mask = 1 << bitPosition;
 
                 op.initCode[byteIndex] = bytes1(uint8(op.initCode[byteIndex]) ^ uint8(mask));
-                checkIsPaymasterSignatureValid(op, false);
+                checkIsPaymasterSignatureValid(op, false, requiredPreFund);
                 op.initCode[byteIndex] = bytes1(uint8(op.initCode[byteIndex]) ^ uint8(mask));
             }
         }
@@ -968,7 +1230,7 @@ contract SingletonPaymasterV6Test is Test {
                 uint256 mask = 1 << bitPosition;
 
                 op.callData[byteIndex] = bytes1(uint8(op.callData[byteIndex]) ^ uint8(mask));
-                checkIsPaymasterSignatureValid(op, false);
+                checkIsPaymasterSignatureValid(op, false, requiredPreFund);
                 op.callData[byteIndex] = bytes1(uint8(op.callData[byteIndex]) ^ uint8(mask));
             }
         }
@@ -984,6 +1246,10 @@ contract SingletonPaymasterV6Test is Test {
 
             if (_recipientPresent == 1) {
                 paymasterConfigLength += 20;
+            }
+
+            if (_preFundPresent == 1) {
+                paymasterConfigLength += 16;
             }
         }
 
@@ -1007,16 +1273,22 @@ contract SingletonPaymasterV6Test is Test {
                 uint256 mask = 1 << bitPosition;
 
                 op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
-                checkIsPaymasterSignatureValid(op, false);
+                checkIsPaymasterSignatureValid(op, false, requiredPreFund);
                 op.paymasterAndData[byteIndex] = bytes1(uint8(op.paymasterAndData[byteIndex]) ^ uint8(mask));
             }
         }
     }
 
-    function checkIsPaymasterSignatureValid(UserOperation memory op, bool isSignatureValid) internal {
+    function checkIsPaymasterSignatureValid(
+        UserOperation memory op,
+        bool isSignatureValid,
+        uint256 requiredPreFund
+    )
+        internal
+    {
         bytes32 opHash = getOpHash(op);
         vm.prank(address(entryPoint));
-        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, 0);
+        (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, requiredPreFund);
         assertEq(uint160(validationData), isSignatureValid ? 0 : 1);
     }
 
@@ -1025,7 +1297,8 @@ contract SingletonPaymasterV6Test is Test {
         uint8 allowAllBundlers,
         UserOperation memory userOp,
         uint8 constantFeePresent,
-        uint8 recipientPresent
+        uint8 recipientPresent,
+        uint128 preFundPresent
     )
         private
         view
@@ -1050,7 +1323,8 @@ contract SingletonPaymasterV6Test is Test {
                 userOp,
                 paymasterSignerKey,
                 constantFeePresent,
-                recipientPresent
+                recipientPresent,
+                preFundPresent
             );
         }
 
@@ -1088,7 +1362,8 @@ contract SingletonPaymasterV6Test is Test {
         UserOperation memory userOp,
         uint256 signerKey,
         uint8 constantFeePresent,
-        uint8 recipientPresent
+        uint8 recipientPresent,
+        uint128 preFundPresent
     )
         private
         view
@@ -1097,7 +1372,10 @@ contract SingletonPaymasterV6Test is Test {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             uint8((data.allowAllBundlers & 0x01) | (ERC20_MODE << 1)),
-            uint8((constantFeePresent & 0x01) | (recipientPresent << 1)),
+            uint8(
+                (constantFeePresent == 1 ? 1 : 0) | (recipientPresent == 1 ? 1 << 1 : 0)
+                    | (preFundPresent > 0 ? 1 << 2 : 0)
+            ),
             data.validUntil,
             data.validAfter,
             erc20,
@@ -1106,6 +1384,10 @@ contract SingletonPaymasterV6Test is Test {
             paymasterValidationGasLimit,
             treasury
         );
+
+        if (preFundPresent != 0) {
+            userOp.paymasterAndData = abi.encodePacked(userOp.paymasterAndData, preFundPresent);
+        }
 
         if (constantFeePresent == 1) {
             uint128 constantFee = 1;
@@ -1164,5 +1446,6 @@ contract SingletonPaymasterV6Test is Test {
     function setupERC20Environment(uint256 approvalValue) private {
         token.sudoMint(address(account), 1000e18);
         token.sudoApprove(address(account), address(paymaster), approvalValue);
+        token.sudoApprove(address(treasury), address(paymaster), UINT256_MAX);
     }
 }
