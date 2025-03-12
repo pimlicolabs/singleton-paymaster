@@ -22,58 +22,55 @@ contract PaymasterDeployer {
 
     constructor() { }
 
-    /**
-     * @notice Deploy both singleton paymasters and transfer ownership
-     * @param _entryPoint The EntryPoint contract address
-     * @param _owner The final owner of the paymasters
-     * @param _manager The manager address for the paymasters
-     * @param _signers Array of allowed signers for the paymasters
-     * @return v6 Address of the deployed SingletonPaymasterV6
-     * @return v7 Address of the deployed SingletonPaymasterV7
-     */
     function deployPaymasters(
+        address _deterministicDeployer,
+        bytes32 _saltV6,
+        bytes32 _saltV7,
         address _entryPoint,
         address _owner,
         address _manager,
         address[] memory _signers
     )
         external
-        returns (address v6, address v7)
     {
+        require(_deterministicDeployer != address(0), "Deterministic deployer cannot be zero address");
         require(_entryPoint != address(0), "EntryPoint cannot be zero address");
         require(_owner != address(0), "Owner cannot be zero address");
         require(_manager != address(0), "Manager cannot be zero address");
         require(_signers.length > 0, "Must provide at least one signer");
 
-        // Deploy paymasters with this contract as the initial owner
-        SingletonPaymasterV6 paymasterV6 = new SingletonPaymasterV6(
-            _entryPoint,
-            address(this), // Temporary owner (this contract)
-            _manager,
-            _signers
+        // Generate the init bytecode for SingletonPaymasterV6 (contract bytecode + constructor args)
+        bytes memory initCodeV6 = abi.encodePacked(
+            type(SingletonPaymasterV6).creationCode, abi.encode(_entryPoint, address(this), _manager, _signers)
         );
 
-        SingletonPaymasterV7 paymasterV7 = new SingletonPaymasterV7(
-            _entryPoint,
-            address(this), // Temporary owner (this contract)
-            _manager,
-            _signers
+        // Generate the init bytecode for SingletonPaymasterV7 (contract bytecode + constructor args)
+        bytes memory initCodeV7 = abi.encodePacked(
+            type(SingletonPaymasterV7).creationCode, abi.encode(_entryPoint, address(this), _manager, _signers)
         );
 
-        // Store addresses
-        singletonPaymasterV6 = address(paymasterV6);
-        singletonPaymasterV7 = address(paymasterV7);
+        // Create the full deployment bytecode with salt and init code
+        bytes memory deployBytecodeV6 = abi.encodePacked(_saltV6, initCodeV6);
+        bytes memory deployBytecodeV7 = abi.encodePacked(_saltV7, initCodeV7);
+
+        // Deploy using the deterministic deployer with raw calls
+        // The deterministic deployer deploys contracts via CREATE2 when receiving raw calls
+        (bool successV6, bytes memory returnDataV6) = _deterministicDeployer.call(deployBytecodeV6);
+        require(successV6, "V6 paymaster deployment failed");
+        singletonPaymasterV6 = abi.decode(returnDataV6, (address));
+
+        (bool successV7, bytes memory returnDataV7) = _deterministicDeployer.call(deployBytecodeV7);
+        require(successV7, "V7 paymaster deployment failed");
+        singletonPaymasterV7 = abi.decode(returnDataV7, (address));
 
         // Transfer ownership to the real owner
         // Both paymasters inherit from AccessControl, we need to:
         // 1. Grant the role to new owner
         // 2. Revoke the role from this contract
-        paymasterV6.grantRole(DEFAULT_ADMIN_ROLE, _owner);
-        paymasterV6.revokeRole(DEFAULT_ADMIN_ROLE, address(this));
+        SingletonPaymasterV6(singletonPaymasterV6).grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        SingletonPaymasterV6(singletonPaymasterV6).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
 
-        paymasterV7.grantRole(DEFAULT_ADMIN_ROLE, _owner);
-        paymasterV7.revokeRole(DEFAULT_ADMIN_ROLE, address(this));
-
-        return (singletonPaymasterV6, singletonPaymasterV7);
+        SingletonPaymasterV7(singletonPaymasterV7).grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        SingletonPaymasterV7(singletonPaymasterV7).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
     }
 }
