@@ -13,9 +13,6 @@ contract PaymasterDeployer {
 
     address private constant SIGNER = 0x69696943154cB76175ABdA777Cc4260c0668Dd80;
 
-    address public singletonPaymasterV6;
-    address public singletonPaymasterV7;
-
     constructor() { }
 
     function deployPaymasterV6(
@@ -47,20 +44,23 @@ contract PaymasterDeployer {
         // Deploy using deterministic deployer
         (bool s, bytes memory b) = _deterministicDeployer.call(deployBytecode);
         require(s, "Failed to deploy SingletonPaymasterV6");
-        singletonPaymasterV6 = abi.decode(b, (address));
 
-        // Transfer ownership
-        SingletonPaymasterV6(singletonPaymasterV6).grantRole(DEFAULT_ADMIN_ROLE, _owner);
-        SingletonPaymasterV6(singletonPaymasterV6).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
-
-        // Transfer manager role
-        SingletonPaymasterV6(singletonPaymasterV6).grantRole(MANAGER_ROLE, _manager);
-        SingletonPaymasterV6(singletonPaymasterV6).revokeRole(MANAGER_ROLE, address(this));
+        // Handle raw address bytes (20 bytes) without assembly
+        address singletonPaymasterV6 = address(bytes20(b));
+        require(singletonPaymasterV6 != address(0), "Failed to deploy SingletonPaymasterV6");
 
         // Add signers
         for (uint256 i = 0; i < _signers.length; i++) {
             SingletonPaymasterV6(singletonPaymasterV6).addSigner(_signers[i]);
         }
+
+        // Transfer manager role
+        SingletonPaymasterV6(singletonPaymasterV6).grantRole(MANAGER_ROLE, _manager);
+        SingletonPaymasterV6(singletonPaymasterV6).revokeRole(MANAGER_ROLE, address(this));
+
+        // Transfer ownership
+        SingletonPaymasterV6(singletonPaymasterV6).grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        SingletonPaymasterV6(singletonPaymasterV6).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
     }
 
     function deployPaymasterV7(
@@ -92,26 +92,27 @@ contract PaymasterDeployer {
         // Deploy using deterministic deployer
         (bool s, bytes memory b) = _deterministicDeployer.call(deployBytecode);
         require(s, "Failed to deploy SingletonPaymasterV7");
-        singletonPaymasterV7 = abi.decode(b, (address));
 
-        // Transfer ownership
-        SingletonPaymasterV7(singletonPaymasterV7).grantRole(DEFAULT_ADMIN_ROLE, _owner);
-        SingletonPaymasterV7(singletonPaymasterV7).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
-
-        // Transfer manager role
-        SingletonPaymasterV7(singletonPaymasterV7).grantRole(MANAGER_ROLE, _manager);
-        SingletonPaymasterV7(singletonPaymasterV7).revokeRole(MANAGER_ROLE, address(this));
+        // Handle raw address bytes (20 bytes) without assembly
+        address singletonPaymasterV7 = address(bytes20(b));
+        require(singletonPaymasterV7 != address(0), "Failed to deploy SingletonPaymasterV7");
 
         // Add signers
         for (uint256 i = 0; i < _signers.length; i++) {
             SingletonPaymasterV7(singletonPaymasterV7).addSigner(_signers[i]);
         }
+
+        // Transfer manager role
+        SingletonPaymasterV7(singletonPaymasterV7).grantRole(MANAGER_ROLE, _manager);
+        SingletonPaymasterV7(singletonPaymasterV7).revokeRole(MANAGER_ROLE, address(this));
+
+        // Transfer ownership
+        SingletonPaymasterV7(singletonPaymasterV7).grantRole(DEFAULT_ADMIN_ROLE, _owner);
+        SingletonPaymasterV7(singletonPaymasterV7).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
     }
 }
 
 contract DeployerFactory {
-    address public paymasterDeployer;
-
     constructor(
         bytes memory _proof,
         address _deterministicDeployer,
@@ -125,12 +126,14 @@ contract DeployerFactory {
     ) {
         // Deploy PaymasterDeployer using deterministic deployer
         bytes32 salt = keccak256("DeployerFactory");
-        bytes memory initCode = type(PaymasterDeployer).creationCode;
+        bytes memory initCode = abi.encodePacked(type(PaymasterDeployer).creationCode);
         bytes memory deployBytecode = abi.encodePacked(salt, initCode);
 
-        (bool success, bytes memory returnData) = _deterministicDeployer.call(deployBytecode);
-        require(success, "Failed to deploy PaymasterDeployer");
-        paymasterDeployer = abi.decode(returnData, (address));
+        (, bytes memory returnData) = _deterministicDeployer.call(deployBytecode);
+
+        // Handle raw address bytes (20 bytes) without assembly
+        address paymasterDeployer = address(bytes20(returnData));
+        require(paymasterDeployer != address(0), "Failed to deploy PaymasterDeployer");
 
         PaymasterDeployer(paymasterDeployer).deployPaymasterV6(
             _proof, _deterministicDeployer, _saltV6, _entryPointV6, _owner, _manager, _signers
