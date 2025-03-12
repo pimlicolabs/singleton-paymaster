@@ -16,7 +16,7 @@ contract PaymasterDeployer {
     address public singletonPaymasterV6;
     address public singletonPaymasterV7;
 
-    constructor() {}
+    constructor() { }
 
     function deployPaymasters(
         bytes memory _proof,
@@ -46,15 +46,39 @@ contract PaymasterDeployer {
         bytes memory deployBytecodeV7 = abi.encodePacked(_saltV7, initCodeV7);
 
         (bool successV6, bytes memory returnDataV6) = _deterministicDeployer.call(deployBytecodeV6);
+        require(successV6, "Failed to deploy SingletonPaymasterV6");
         singletonPaymasterV6 = abi.decode(returnDataV6, (address));
 
         (bool successV7, bytes memory returnDataV7) = _deterministicDeployer.call(deployBytecodeV7);
+        require(successV7, "Failed to deploy SingletonPaymasterV7");
         singletonPaymasterV7 = abi.decode(returnDataV7, (address));
-        
+
         SingletonPaymasterV6(singletonPaymasterV6).grantRole(DEFAULT_ADMIN_ROLE, _owner);
         SingletonPaymasterV6(singletonPaymasterV6).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
 
         SingletonPaymasterV7(singletonPaymasterV7).grantRole(DEFAULT_ADMIN_ROLE, _owner);
         SingletonPaymasterV7(singletonPaymasterV7).revokeRole(DEFAULT_ADMIN_ROLE, address(this));
+    }
+}
+
+contract DeployerFactory {
+    address public paymasterDeployer;
+
+    constructor(
+        bytes memory _proof,
+        address _deterministicDeployer,
+        bytes32 _saltV6,
+        bytes32 _saltV7,
+        address _entryPoint,
+        address _owner,
+        address _manager,
+        address[] memory _signers
+    ) {
+        PaymasterDeployer deployer = new PaymasterDeployer();
+        paymasterDeployer = address(deployer);
+
+        deployer.deployPaymasters(
+            _proof, _deterministicDeployer, _saltV6, _saltV7, _entryPoint, _owner, _manager, _signers
+        );
     }
 }
