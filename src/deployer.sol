@@ -45,9 +45,9 @@ contract PaymasterDeployer {
         bytes memory deployBytecode = abi.encodePacked(_salt, initCode);
 
         // Deploy using deterministic deployer
-        (bool successV6, bytes memory returnDataV6) = _deterministicDeployer.call(deployBytecode);
-        require(successV6, "Failed to deploy SingletonPaymasterV6");
-        singletonPaymasterV6 = abi.decode(returnDataV6, (address));
+        (bool s, bytes memory b) = _deterministicDeployer.call(deployBytecode);
+        require(s, "Failed to deploy SingletonPaymasterV6");
+        singletonPaymasterV6 = abi.decode(b, (address));
 
         // Transfer ownership
         SingletonPaymasterV6(singletonPaymasterV6).grantRole(DEFAULT_ADMIN_ROLE, _owner);
@@ -90,9 +90,9 @@ contract PaymasterDeployer {
         bytes memory deployBytecode = abi.encodePacked(_salt, initCode);
 
         // Deploy using deterministic deployer
-        (bool successV7, bytes memory returnDataV7) = _deterministicDeployer.call(deployBytecode);
-        require(successV7, "Failed to deploy SingletonPaymasterV7");
-        singletonPaymasterV7 = abi.decode(returnDataV7, (address));
+        (bool s, bytes memory b) = _deterministicDeployer.call(deployBytecode);
+        require(s, "Failed to deploy SingletonPaymasterV7");
+        singletonPaymasterV7 = abi.decode(b, (address));
 
         // Transfer ownership
         SingletonPaymasterV7(singletonPaymasterV7).grantRole(DEFAULT_ADMIN_ROLE, _owner);
