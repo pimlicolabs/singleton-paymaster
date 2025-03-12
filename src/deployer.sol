@@ -97,10 +97,16 @@ contract DeployerFactory {
         address _manager,
         address[] memory _signers
     ) {
-        PaymasterDeployer deployer = new PaymasterDeployer();
-        paymasterDeployer = address(deployer);
+        // Deploy PaymasterDeployer using deterministic deployer
+        bytes32 salt = keccak256("DeployerFactory");
+        bytes memory initCode = type(PaymasterDeployer).creationCode;
+        bytes memory deployBytecode = abi.encodePacked(salt, initCode);
 
-        deployer.deployPaymasters(
+        (bool success, bytes memory returnData) = _deterministicDeployer.call(deployBytecode);
+        require(success, "Failed to deploy PaymasterDeployer");
+        paymasterDeployer = abi.decode(returnData, (address));
+
+        PaymasterDeployer(paymasterDeployer).deployPaymasters(
             _proof, _deterministicDeployer, _saltV6, _saltV7, _entryPointV6, _entryPointV7, _owner, _manager, _signers
         );
     }
