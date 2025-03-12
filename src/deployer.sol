@@ -39,7 +39,7 @@ contract PaymasterDeployer {
         // Temp signers
         address[] memory tempSigners = new address[](0);
 
-        // Use temporary initcode
+        // Use temporary constant constructor params
         bytes memory initCodeV6 = abi.encodePacked(
             type(SingletonPaymasterV6).creationCode,
             abi.encode(_entryPointV6, address(this), address(this), tempSigners)
