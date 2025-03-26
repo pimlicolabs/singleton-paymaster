@@ -6,7 +6,8 @@ import { MessageHashUtils } from "openzeppelin-contracts-v5.0.2/contracts/utils/
 import { IERC20 } from "openzeppelin-contracts-v5.0.2/contracts/token/ERC20/IERC20.sol";
 
 import { IEntryPoint } from "@account-abstraction-v8/interfaces/IEntryPoint.sol";
-import { PackedUserOperation } from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { PackedUserOperation as PackedUserOperationV8 } from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ERC20PostOpContext, BaseSingletonPaymaster } from "../src/base/BaseSingletonPaymaster.sol";
@@ -15,6 +16,7 @@ import { PostOpMode } from "../src/interfaces/PostOpMode.sol";
 
 import { SimpleAccountFactory, SimpleAccount } from "./utils/account-abstraction/v08/accounts/SimpleAccountFactory.sol";
 import { EntryPoint } from "./utils/account-abstraction/v08/core/EntryPoint.sol";
+import { BaseAccount } from "./utils/account-abstraction/v08/core/BaseAccount.sol";
 import { TestERC20 } from "./utils/TestERC20.sol";
 import { TestCounter } from "./utils/TestCounter.sol";
 
@@ -83,6 +85,8 @@ contract SingletonPaymasterV8Test is Test {
 
         entryPoint = new EntryPoint();
         accountFactory = new SimpleAccountFactory(entryPoint);
+
+        vm.prank(address(entryPoint.senderCreator()));
         account = accountFactory.createAccount(user, 0);
 
         paymaster = new SingletonPaymasterV8(address(entryPoint), paymasterOwner, manager, new address[](0));
@@ -671,7 +675,7 @@ contract SingletonPaymasterV8Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
         op.callData = abi.encodeWithSelector(
-            SimpleAccount.execute.selector,
+            BaseAccount.execute.selector,
             address(token),
             0,
             // remove the approve during execution phase
@@ -1448,7 +1452,7 @@ contract SingletonPaymasterV8Test is Test {
         op.sender = address(account);
         op.nonce = entryPoint.getNonce(address(account), 0);
         op.callData = abi.encodeWithSelector(
-            SimpleAccount.execute.selector, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector)
+            BaseAccount.execute.selector, address(counter), 0, abi.encodeWithSelector(TestCounter.count.selector)
         );
         op.accountGasLimits = bytes32(abi.encodePacked(bytes16(uint128(80_000)), bytes16(uint128(50_000))));
         op.preVerificationGas = 50_000;
@@ -1457,20 +1461,40 @@ contract SingletonPaymasterV8Test is Test {
         return op;
     }
 
+    function convertToPackedUserOperationV8(PackedUserOperation memory op)
+        internal
+        pure
+        returns (PackedUserOperationV8 memory)
+    {
+        return PackedUserOperationV8({
+            sender: op.sender,
+            nonce: op.nonce,
+            initCode: op.initCode,
+            callData: op.callData,
+            accountGasLimits: op.accountGasLimits,
+            preVerificationGas: op.preVerificationGas,
+            gasFees: op.gasFees,
+            paymasterAndData: op.paymasterAndData,
+            signature: op.signature
+        });
+    }
+
     function getOpHash(PackedUserOperation memory op) internal view returns (bytes32) {
-        return entryPoint.getUserOpHash(op);
+        PackedUserOperationV8 memory opV8 = convertToPackedUserOperationV8(op);
+        return entryPoint.getUserOpHash(opV8);
     }
 
     function signUserOp(PackedUserOperation memory op, uint256 _key) private view returns (bytes memory signature) {
-        bytes32 hash = entryPoint.getUserOpHash(op);
-        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, MessageHashUtils.toEthSignedMessageHash(hash));
+        PackedUserOperationV8 memory opV8 = convertToPackedUserOperationV8(op);
+        bytes32 hash = entryPoint.getUserOpHash(opV8);
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(_key, hash);
         signature = abi.encodePacked(r, s, v);
     }
 
     function submitUserOp(PackedUserOperation memory op) public {
-        PackedUserOperation[] memory ops = new PackedUserOperation[](1);
-        ops[0] = op;
-        entryPoint.handleOps(ops, beneficiary);
+        PackedUserOperationV8[] memory opsV8 = new PackedUserOperationV8[](1);
+        opsV8[0] = convertToPackedUserOperationV8(op);
+        entryPoint.handleOps(opsV8, beneficiary);
     }
 
     function setupERC20Environment() private {
