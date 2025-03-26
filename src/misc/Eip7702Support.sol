@@ -7,8 +7,8 @@ import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.
 
 // Adapted from
 // https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.8/contracts/core/Eip7702Support.sol
-// To use the PackedUserOperation struct from account-abstraction-v7. Both V7 and V8 share the same struct and can be
-// used interchangeably.
+// To use the PackedUserOperation struct from account-abstraction-v7.
+// Both v0.7 and v0.8 share the same PackedUserOperation struct and can be used interchangeably.
 library Eip7702Support {
     // EIP-7702 code prefix before delegate address.
     bytes3 internal constant EIP7702_PREFIX = 0xef0100;
