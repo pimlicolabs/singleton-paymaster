@@ -5,6 +5,7 @@ solady/=lib/solady/src/
 
 @openzeppelin-v4.8.3/=lib/openzeppelin-contracts-v4.8.3/
 @openzeppelin-v5.0.2/=lib/openzeppelin-contracts-v5.0.2/
+@openzeppelin-v5.1.0/=lib/openzeppelin-contracts-v5.1.0/
 
 @account-abstraction-v6/=lib/account-abstraction-v6/contracts/
 @account-abstraction-v7/=lib/account-abstraction-v7/contracts/
