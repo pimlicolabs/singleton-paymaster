@@ -16,3 +16,6 @@
 [submodule "lib/openzeppelin-contracts-v4.8.3"]
 	path = lib/openzeppelin-contracts-v4.8.3
 	url = https://github.com/OpenZeppelin/openzeppelin-contracts
+[submodule "lib/account-abstraction-v8"]
+	path = lib/account-abstraction-v8
+	url = https://github.com/eth-infinitism/account-abstraction
