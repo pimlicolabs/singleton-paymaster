@@ -756,7 +756,7 @@ contract SingletonPaymasterV7Test is Test {
         // TODO: Check when preOpGasApproximation is not 0
         vm.assertEq(expectedCostInToken, token.balanceOf(treasury));
 
-        uint256 preFundInToken = preFund * exchangeRate / 1e18;
+        uint256 preFundInToken = (preFund * exchangeRate) / 1e18;
         if (recipientPresent == 1 && preFundInToken > expectedCostInToken) {
             vm.assertEq(preFundInToken - expectedCostInToken, token.balanceOf(recipient));
         } else {
@@ -833,7 +833,7 @@ contract SingletonPaymasterV7Test is Test {
 
         vm.assertEq(expectedCostInToken, token.balanceOf(treasury));
 
-        uint256 preFundInToken = preFund * exchangeRate / 1e18;
+        uint256 preFundInToken = (preFund * exchangeRate) / 1e18;
         if (recipientPresent == 1 && preFundInToken > expectedCostInToken) {
             vm.assertEq(preFundInToken - expectedCostInToken, token.balanceOf(recipient));
         } else {
@@ -1257,7 +1257,7 @@ contract SingletonPaymasterV7Test is Test {
         }
 
         uint256 paymasterConfigLength = PAYMASTER_DATA_OFFSET + MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH; // include mode and
-            // allowAllBundlers
+        // allowAllBundlers
 
         if (_mode == ERC20_MODE) {
             paymasterConfigLength += ERC20_PAYMASTER_DATA_LENGTH;
