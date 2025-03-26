@@ -8,3 +8,4 @@ solady/=lib/solady/src/
 
 @account-abstraction-v6/=lib/account-abstraction-v6/contracts/
 @account-abstraction-v7/=lib/account-abstraction-v7/contracts/
+@account-abstraction-v8/=lib/account-abstraction-v8/contracts/
