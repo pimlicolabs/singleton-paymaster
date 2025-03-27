@@ -879,12 +879,15 @@ abstract contract BasePaymasterTestV8 is Test {
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
+        // Get the tx.origin that will be used in the test environment 
+        address testEnvironmentTxOrigin = DEFAULT_SENDER;
+        
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEntryPoint.FailedOpWithRevert.selector,
                 uint256(0),
                 "AA33 reverted",
-                abi.encodeWithSelector(BaseSingletonPaymaster.BundlerNotAllowed.selector, address(0))
+                abi.encodeWithSelector(BaseSingletonPaymaster.BundlerNotAllowed.selector, testEnvironmentTxOrigin)
             )
         );
 
