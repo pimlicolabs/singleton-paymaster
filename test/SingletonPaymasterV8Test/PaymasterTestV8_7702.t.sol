@@ -4,12 +4,13 @@ pragma solidity ^0.8.0;
 import { BasePaymasterTestV8 } from "./BasePaymasterTestV8.t.sol";
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import { PackedUserOperation as PackedUserOperationV8 } from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
-import { Simple7702Account } from "@account-abstraction-v8/accounts/Simple7702Account.sol";
+// Note: commented out until you implement Simple7702Account in test/utils
+// import { Simple7702Account } from "../utils/account-abstraction/v08/accounts/Simple7702Account.sol";
 
 // 7702 account implementation for SingletonPaymasterV8
 contract PaymasterTestV8_7702 is BasePaymasterTestV8 {
     // Account with EIP-7702 support
-    Simple7702Account account;
+    // Simple7702Account account; // Uncomment once implemented
 
     function setUp() public override {
         super.setUp();
