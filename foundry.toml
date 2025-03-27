@@ -2,8 +2,15 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+
+# EntryPoint V0.8 is built with minimum version of cancun
 solc = "0.8.28"
 evm_version = 'cancun'
+
+# EntryPoint V0.6 and v0.7 is built with minimum version of london
+#solc = "0.8.26"
+#evm_version = 'london'
+
 optimizer = true
 optimizer_runs = 1000000
 gas_limit = "18446744073709551615"
