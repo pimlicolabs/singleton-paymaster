@@ -301,7 +301,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
      * @param _mode The mode that we want to get the hash for.
      * @return bytes32 The hash that the signer should sign over.
      */
-    function getHash(uint8 _mode, PackedUserOperation calldata _userOp) public view virtual returns (bytes32) {
+    function getHash(uint8 _mode, PackedUserOperation calldata _userOp) public view returns (bytes32) {
         if (_mode == VERIFYING_MODE) {
             return _getHash(_userOp, MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH + VERIFYING_PAYMASTER_DATA_LENGTH);
         } else {
