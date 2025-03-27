@@ -45,13 +45,13 @@ abstract contract BasePaymasterTestV8 is Test {
     uint256 immutable EXCHANGE_RATE = 3000 * 1e18;
     uint128 immutable POSTOP_GAS = 50_000;
     uint128 immutable PAYMASTER_VALIDATION_GAS_LIMIT = 30_000;
-    
+
     // ECDSA signature constants
     uint8 immutable PAYMASTER_DATA_OFFSET = 52;
     uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
     uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
     uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12;
-    
+
     // Shared test variables
     address payable beneficiary;
     address paymasterOwner;
@@ -68,10 +68,14 @@ abstract contract BasePaymasterTestV8 is Test {
     TestERC20 token;
     TestCounter counter;
     
+    // Fixed address for the EntryPoint as expected by Simple7702Account
+    address constant ENTRY_POINT_ADDRESS = 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108;
+
     // Abstract methods to be implemented by derived contracts
     function createAndFundAccount(address owner) internal virtual returns (address);
+
     function signUserOp(PackedUserOperation memory op, uint256 key) internal virtual returns (bytes memory);
-    
+
     // Common setup
     function setUp() public virtual {
         token = new TestERC20(18);
@@ -86,20 +90,30 @@ abstract contract BasePaymasterTestV8 is Test {
         (, unauthorizedSignerKey) = makeAddrAndKey("unauthorizedSigner");
         (user, userKey) = makeAddrAndKey("user");
 
-        entryPoint = new EntryPoint();
+        // Create a temporary EntryPoint to get its code
+        EntryPoint tempEntryPoint = new EntryPoint();
         
+        // Get the runtime bytecode of the EntryPoint
+        bytes memory entryPointCode = address(tempEntryPoint).code;
+        
+        // Set up the EntryPoint at the specific address
+        vm.etch(ENTRY_POINT_ADDRESS, entryPointCode);
+        
+        // Now point to the EntryPoint at the specific address
+        entryPoint = EntryPoint(payable(ENTRY_POINT_ADDRESS));
+
         // Account creation is done in child contracts
-        
-        paymaster = new SingletonPaymasterV8(address(entryPoint), paymasterOwner, manager, new address[](0));
+
+        paymaster = new SingletonPaymasterV8(ENTRY_POINT_ADDRESS, paymasterOwner, manager, new address[](0));
         paymaster.deposit{ value: 100e18 }();
 
         vm.prank(paymasterOwner);
         paymaster.addSigner(paymasterSigner);
     }
-    
+
     // Shared test methods
     // Common helper and test declarations defined here for shared use
-    
+
     function testDeployment() public virtual {
         SingletonPaymasterV8 subject =
             new SingletonPaymasterV8(address(entryPoint), paymasterOwner, manager, new address[](0));
@@ -110,10 +124,10 @@ abstract contract BasePaymasterTestV8 is Test {
         // assertEq(subject.treasury(), paymasterOwner);
         assertTrue(subject.signers(paymasterSigner));
     }
-    
+
     function testERC20Success() public virtual {
         setupERC20Environment();
-        
+
         // Get account from the child implementation
         address account = createAndFundAccount(user);
 
@@ -135,7 +149,7 @@ abstract contract BasePaymasterTestV8 is Test {
         // treasury should now have tokens
         assertGt(token.balanceOf(treasury), 0);
     }
-    
+
     function testERC20WithConstantFeeSuccess() public virtual {
         setupERC20Environment();
 
@@ -164,7 +178,7 @@ abstract contract BasePaymasterTestV8 is Test {
     function testVerifyingSuccess() public virtual {
         // Get account from the child implementation
         address account = createAndFundAccount(user);
-        
+
         PackedUserOperation memory op = fillUserOp(account);
         op.paymasterAndData =
             getSignedPaymasterData(VERIFYING_MODE, ALLOW_ALL_BUNDLERS, op, uint8(0), uint8(0), uint8(0));
@@ -179,7 +193,7 @@ abstract contract BasePaymasterTestV8 is Test {
 
     function test_ERC20WithPrefund() public virtual {
         setupERC20Environment();
-        
+
         // Get account from the child implementation
         address account = createAndFundAccount(user);
 
@@ -202,11 +216,11 @@ abstract contract BasePaymasterTestV8 is Test {
         // treasury should now have tokens
         assertGt(token.balanceOf(treasury), 0);
     }
-    
+
     function test_RevertWhen_ERC20PaymasterSignatureInvalid() public virtual {
         // Get account from the child implementation
         address account = createAndFundAccount(user);
-        
+
         PackedUserOperation memory op = fillUserOp(account);
 
         // sign with random private key to force false signature
@@ -228,7 +242,7 @@ abstract contract BasePaymasterTestV8 is Test {
         vm.expectRevert(abi.encodeWithSelector(IEntryPoint.FailedOp.selector, uint256(0), "AA34 signature error"));
         submitUserOp(op);
     }
-    
+
     function test_RevertWhen_VerifyingPaymasterSignatureInvalid() public virtual {
         address account = createAndFundAccount(user);
         PackedUserOperation memory op = fillUserOp(account);
@@ -367,7 +381,8 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 _recipientPresent,
         uint8 _preFundPresent
     )
-        public virtual
+        public
+        virtual
     {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
@@ -440,7 +455,8 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 _recipientPresent,
         uint8 _preFundPresent
     )
-        public virtual
+        public
+        virtual
     {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
@@ -667,7 +683,13 @@ abstract contract BasePaymasterTestV8 is Test {
         submitUserOp(op);
     }
 
-    function test_RevertWhen_PostOpTransferFromFailed(uint8 _constantFeePresent, uint8 _recipientPresent) public virtual {
+    function test_RevertWhen_PostOpTransferFromFailed(
+        uint8 _constantFeePresent,
+        uint8 _recipientPresent
+    )
+        public
+        virtual
+    {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
         address account = createAndFundAccount(user);
@@ -727,7 +749,8 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 _recipientPresent,
         uint256 _preFund
     )
-        public virtual
+        public
+        virtual
     {
         address account = createAndFundAccount(user);
         token.sudoMint(account, 1e50);
@@ -798,7 +821,8 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 _recipientPresent,
         uint256 _preFund
     )
-        public virtual
+        public
+        virtual
     {
         address account = createAndFundAccount(user);
         token.sudoMint(account, 1e50);
@@ -879,9 +903,9 @@ abstract contract BasePaymasterTestV8 is Test {
         op.signature = signUserOp(op, userKey);
 
         // check that UserOperationSponsored log is emitted.
-        // Get the tx.origin that will be used in the test environment 
+        // Get the tx.origin that will be used in the test environment
         address testEnvironmentTxOrigin = DEFAULT_SENDER;
-        
+
         vm.expectRevert(
             abi.encodeWithSelector(
                 IEntryPoint.FailedOpWithRevert.selector,
@@ -974,7 +998,8 @@ abstract contract BasePaymasterTestV8 is Test {
         uint128 _paymasterPostOpGas,
         uint128 _paymasterVerificationGas
     )
-        public virtual
+        public
+        virtual
     {
         address account = createAndFundAccount(user);
         PackedUserOperation memory op = fillUserOp(account);
@@ -1041,7 +1066,8 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 _recipientPresent,
         uint8 _preFundPresent
     )
-        public virtual
+        public
+        virtual
     {
         uint8 constantFeePresent = uint8(bound(_constantFeePresent, 0, 1));
         uint8 recipientPresent = uint8(bound(_recipientPresent, 0, 1));
@@ -1337,7 +1363,7 @@ abstract contract BasePaymasterTestV8 is Test {
         (, uint256 validationData) = paymaster.validatePaymasterUserOp(op, opHash, requiredPreFund);
         assertEq(uint160(validationData), isSignatureValid ? 0 : 1);
     }
-    
+
     // Helper methods
     function fillUserOp(address accountAddress) internal view returns (PackedUserOperation memory op) {
         op.sender = accountAddress;
@@ -1355,7 +1381,7 @@ abstract contract BasePaymasterTestV8 is Test {
         PackedUserOperationV8 memory opV8 = convertToPackedUserOperationV8(op);
         return entryPoint.getUserOpHash(opV8);
     }
-    
+
     function convertToPackedUserOperationV8(PackedUserOperation memory op)
         internal
         pure
@@ -1373,23 +1399,23 @@ abstract contract BasePaymasterTestV8 is Test {
             signature: op.signature
         });
     }
-    
+
     function submitUserOp(PackedUserOperation memory op) public {
         PackedUserOperationV8[] memory opsV8 = new PackedUserOperationV8[](1);
         opsV8[0] = convertToPackedUserOperationV8(op);
         entryPoint.handleOps(opsV8, beneficiary);
     }
-    
+
     function setupERC20Environment() internal {
         // Get account address from child implementation
         address account = createAndFundAccount(user);
-        
+
         token.sudoMint(account, 1000e18);
         token.sudoMint(address(paymaster), 1);
         token.sudoApprove(account, address(paymaster), type(uint256).max);
         token.sudoApprove(address(treasury), address(paymaster), type(uint256).max);
     }
-    
+
     function getSignedPaymasterData(
         uint8 mode,
         uint8 allowAllBundlers,
@@ -1397,7 +1423,11 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 constantFeePresent,
         uint8 recipientPresent,
         uint128 preFundPresent
-    ) internal view returns (bytes memory) {
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
         PaymasterData memory data = PaymasterData({
             paymasterAddress: address(paymaster),
             preVerificationGas: 100_000,
@@ -1426,12 +1456,16 @@ abstract contract BasePaymasterTestV8 is Test {
 
         revert("unexpected mode");
     }
-    
+
     function getVerifyingModeData(
         PaymasterData memory data,
         PackedUserOperation memory userOp,
         uint256 signerKey
-    ) internal view returns (bytes memory) {
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
@@ -1457,7 +1491,11 @@ abstract contract BasePaymasterTestV8 is Test {
         uint8 constantFeePresent,
         uint8 recipientPresent,
         uint128 preFundPresent
-    ) internal view returns (bytes memory) {
+    )
+        internal
+        view
+        returns (bytes memory)
+    {
         userOp.paymasterAndData = abi.encodePacked(
             data.paymasterAddress,
             data.preVerificationGas,
