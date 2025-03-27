@@ -8,7 +8,7 @@ Pimlico balance (verifying mode).
 
 - ✅ Users paying with ERC-20 tokens for transaction fees
 - ✅ Users paying with Pimlico balance
-- ✅ Compatible with EntryPoint v0.7 and v0.6
+- ✅ Compatible with EntryPoint v0.8 and v0.7 and v0.6
 - ✅ Optional ability to fund sender
 - ✅ Optional ability to restrict bundling of user operation to a whitelisted
   bundler
