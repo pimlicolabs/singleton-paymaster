@@ -228,6 +228,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     )
         public
         pure
+        virtual
         returns (uint256)
     {
         uint256 executionGasUsed = 0;

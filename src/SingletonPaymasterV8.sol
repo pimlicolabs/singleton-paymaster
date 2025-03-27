@@ -33,4 +33,19 @@ contract SingletonPaymasterV8 is SingletonPaymasterV7 {
         bytes32 originalHash = super.getHash(_mode, _userOp);
         return keccak256(abi.encode(originalHash, overrideInitCodeHash));
     }
+
+    function _expectedPenaltyGasCost(
+        uint256, /* _actualGasCost */
+        uint256, /* _actualUserOpFeePerGas */
+        uint128, /* postOpGas */
+        uint256, /* preOpGasApproximation */
+        uint256 /* executionGasLimit */
+    )
+        public
+        pure
+        override
+        returns (uint256)
+    {
+        return 0;
+    }
 }
