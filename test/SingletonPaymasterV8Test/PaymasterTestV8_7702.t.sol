@@ -33,32 +33,10 @@ contract PaymasterTestV8_7702 is BasePaymasterTestV8 {
     }
 
     function signUserOp(PackedUserOperation memory op, uint256 key) internal view override returns (bytes memory) {
-        // Check if the initCode contains the EIP-7702 marker, which indicates a delegated operation
-        bool isEip7702Op = false;
-        if (op.initCode.length >= 2) {
-            uint16 marker = (uint16(uint8(op.initCode[0])) << 8) | uint16(uint8(op.initCode[1]));
-            if (marker == uint16(0x7702)) {
-                isEip7702Op = true;
-            }
-        }
-
         PackedUserOperationV8 memory opV8 = convertToPackedUserOperationV8(op);
         bytes32 hash = entryPoint.getUserOpHash(opV8);
 
-        if (isEip7702Op) {
-            // EIP-7702 delegation signature
-            // For delegation in 7702, we use a marker to signify this is a 7702 delegation signature
-            bytes4 delegationSelector = bytes4(keccak256("isValidSignature(bytes32,bytes)"));
-
-            // Standard ECDSA signature
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, hash);
-
-            // Return the delegation signature with proper formatting
-            return abi.encodePacked(delegationSelector, r, s, v);
-        } else {
-            // Standard signature for non-delegated operations
-            (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, hash);
-            return abi.encodePacked(r, s, v);
-        }
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(key, hash);
+        return abi.encodePacked(r, s, v);
     }
 }
