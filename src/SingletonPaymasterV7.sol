@@ -228,6 +228,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     )
         public
         pure
+        virtual
         returns (uint256)
     {
         uint256 executionGasUsed = 0;
@@ -281,7 +282,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
             absoluteCostInToken
         );
 
-        uint256 preFundInToken = ctx.preFund * ctx.exchangeRate / 1e18;
+        uint256 preFundInToken = (ctx.preFund * ctx.exchangeRate) / 1e18;
 
         if (ctx.recipient != address(0) && preFundInToken > costInToken) {
             SafeTransferLib.safeTransferFrom(ctx.token, ctx.sender, ctx.recipient, preFundInToken - costInToken);
