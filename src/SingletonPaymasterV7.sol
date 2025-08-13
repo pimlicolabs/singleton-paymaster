@@ -17,8 +17,10 @@ import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
 
+// = = = Custom = = = //
 error InsufficientBalance(uint256 required, uint256 actual);
 error InsufficientAllowance(uint256 required, uint256 actual);
+// = = = Custom = = = //
 
 /// @title SingletonPaymasterV7
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV7.sol)
@@ -281,7 +283,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         address from = costInToken > ctx.preFundCharged ? ctx.sender : ctx.treasury;
 
-        // = = = Custom checks = = = //
+        // = = = Custom = = = //
         uint256 balance = IERC20(ctx.token).balanceOf(from);
         if (balance < absoluteCostInToken) {
             revert InsufficientBalance(absoluteCostInToken, balance);
@@ -291,7 +293,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         if (allowance < absoluteCostInToken) {
             revert InsufficientAllowance(absoluteCostInToken, allowance);
         }
-        // = = = Custom checks = = = //
+        // = = = Custom = = = //
 
         SafeTransferLib.safeTransferFrom(
             ctx.token,
