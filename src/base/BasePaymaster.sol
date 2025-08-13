@@ -12,7 +12,8 @@ import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol"
  * Validates that the postOp is called only by the entryPoint.
  */
 abstract contract BasePaymaster is ManagerAccessControl {
-    IEntryPoint public immutable entryPoint;
+    // Custom: Remove immutable identifier such that the EntryPoint is in slot 0.
+    IEntryPoint public entryPoint;
 
     constructor(address _entryPoint, address _owner, address _manager) {
         entryPoint = IEntryPoint(_entryPoint);
