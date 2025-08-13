@@ -7,6 +7,7 @@ import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.
 
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
+import { IERC20 } from "@openzeppelin-v5.0.2/contracts/interfaces/IERC20.sol";
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
@@ -15,6 +16,9 @@ import { IPaymasterV7 } from "./interfaces/IPaymasterV7.sol";
 import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
+
+error InsufficientBalance(uint256 required, uint256 actual);
+error InsufficientAllowance(uint256 required, uint256 actual);
 
 /// @title SingletonPaymasterV7
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV7.sol)
@@ -274,6 +278,20 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
 
         uint256 absoluteCostInToken =
             costInToken > ctx.preFundCharged ? costInToken - ctx.preFundCharged : ctx.preFundCharged - costInToken;
+
+        address from = costInToken > ctx.preFundCharged ? ctx.sender : ctx.treasury;
+
+        // = = = Custom checks = = = //
+        uint256 balance = IERC20(ctx.token).balanceOf(from);
+        if (balance < absoluteCostInToken) {
+            revert InsufficientBalance(absoluteCostInToken, balance);
+        }
+
+        uint256 allowance = IERC20(ctx.token).allowance(from, address(this));
+        if (allowance < absoluteCostInToken) {
+            revert InsufficientAllowance(absoluteCostInToken, allowance);
+        }
+        // = = = Custom checks = = = //
 
         SafeTransferLib.safeTransferFrom(
             ctx.token,
