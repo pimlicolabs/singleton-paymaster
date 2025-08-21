@@ -145,19 +145,34 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
     /// @notice Mode indicating that the Paymaster is in Verifying mode.
-    uint8 immutable VERIFYING_MODE = 0;
+    // uint8 immutable VERIFYING_MODE = 0;
 
     /// @notice Mode indicating that the Paymaster is in ERC-20 mode.
-    uint8 immutable ERC20_MODE = 1;
+    // uint8 immutable ERC20_MODE = 1;
 
     /// @notice The length of the mode and allowAllBundlers bytes.
-    uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
+    // uint8 immutable MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
 
     /// @notice The length of the ERC-20 config without singature.
-    uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
+    // uint8 immutable ERC20_PAYMASTER_DATA_LENGTH = 117;
 
     /// @notice The length of the verfiying config without singature.
-    uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12
+    // uint8 immutable VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12
+
+    // NOTE: change modifier to constant so that variable is included in deployedBytecode.object
+    uint8 constant VERIFYING_MODE = 0;
+
+    // NOTE: change modifier to constant so that variable is included in deployedBytecode.object
+    uint8 constant ERC20_MODE = 1;
+
+    // NOTE: change modifier to constant so that variable is included in deployedBytecode.object
+    uint8 constant MODE_AND_ALLOW_ALL_BUNDLERS_LENGTH = 1;
+
+    // NOTE: change modifier to constant so that variable is included in deployedBytecode.object
+    uint8 constant ERC20_PAYMASTER_DATA_LENGTH = 117;
+
+    // NOTE: change modifier to constant so that variable is included in deployedBytecode.object
+    uint8 constant VERIFYING_PAYMASTER_DATA_LENGTH = 12; // 12
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                          STORAGE                           */
@@ -241,9 +256,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @param _paymasterConfig The paymaster configuration in bytes.
      * @return config The parsed paymaster configuration values.
      */
-    function _parseErc20Config(
-        bytes calldata _paymasterConfig
-    )
+    function _parseErc20Config(bytes calldata _paymasterConfig)
         internal
         pure
         returns (ERC20PaymasterData memory config)
@@ -336,9 +349,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65
      * bytes.
      */
-    function _parseVerifyingConfig(
-        bytes calldata _paymasterConfig
-    )
+    function _parseVerifyingConfig(bytes calldata _paymasterConfig)
         internal
         pure
         returns (uint48, uint48, bytes calldata)

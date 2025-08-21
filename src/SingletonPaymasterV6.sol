@@ -27,7 +27,10 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    uint256 private immutable PAYMASTER_DATA_OFFSET = 20;
+    //uint256 private immutable PAYMASTER_DATA_OFFSET = 20;
+
+    // NOTE: change modifier to constant so that variable is included in deployedBytecode.object
+    uint256 private constant PAYMASTER_DATA_OFFSET = 20;
 
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                        CONSTRUCTOR                         */
