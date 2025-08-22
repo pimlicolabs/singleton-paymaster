@@ -7,12 +7,18 @@ import { _packValidationData } from "@account-abstraction-v6/core/Helpers.sol";
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
 import { Math } from "@openzeppelin-v5.0.2/contracts/utils/math/Math.sol";
+import { IERC20 } from "@openzeppelin-v5.0.2/contracts/interfaces/IERC20.sol";
 
 import { BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext } from "./base/BaseSingletonPaymaster.sol";
 import { IPaymasterV6 } from "./interfaces/IPaymasterV6.sol";
 import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
+
+// = = = Custom = = = //
+error InsufficientBalance(uint256 required, uint256 actual);
+error InsufficientAllowance(uint256 required, uint256 actual);
+// = = = Custom = = = //
 
 /// @title SingletonPaymasterV6
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV6.sol)
@@ -216,8 +222,22 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         uint256 costInToken =
             getCostInToken(_actualGasCost, ctx.postOpGas, actualUserOpFeePerGas, ctx.exchangeRate) + ctx.constantFee;
 
-        uint256 tokenToTransfer =
+        // = = = Custom = = = //
+        address from = costInToken > ctx.preFundCharged ? ctx.sender : ctx.treasury;
+
+        uint256 absoluteCostInToken =
             costInToken > ctx.preFundCharged ? costInToken - ctx.preFundCharged : ctx.preFundCharged - costInToken;
+
+        uint256 balance = IERC20(ctx.token).balanceOf(from);
+        if (balance < absoluteCostInToken) {
+            revert InsufficientBalance(absoluteCostInToken, balance);
+        }
+
+        uint256 allowance = IERC20(ctx.token).allowance(from, address(this));
+        if (allowance < absoluteCostInToken) {
+            revert InsufficientAllowance(absoluteCostInToken, allowance);
+        }
+        // = = = Custom = = = //
 
         // There is a bug in EntryPoint v0.6 where if postOp reverts where the revert bytes are less than 32bytes,
         // it will revert the whole bundle instead of just force failing the userOperation.
@@ -227,7 +247,7 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
             ctx.token,
             costInToken > ctx.preFundCharged ? ctx.sender : ctx.treasury,
             costInToken > ctx.preFundCharged ? ctx.treasury : ctx.sender,
-            tokenToTransfer
+            absoluteCostInToken
         );
 
         if (!success) {
