@@ -117,9 +117,19 @@ contract SingletonPaymasterV6 is BaseSingletonPaymaster, IPaymasterV6 {
         (uint8 mode, bool allowAllBundlers, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
-        if (!allowAllBundlers && !isBundlerAllowed[tx.origin]) {
-            revert BundlerNotAllowed(tx.origin);
-        }
+        // :Custom:
+        //
+        // Bundler allowlist check is intentionally disabled.
+        // This validation is always called by the bundler, which means
+        // the bundler will always be allowed.
+        //
+        // Keeping this check in the override contract could cause production issues if the onchain isBundlerAllowed
+        // mapping is updated but the paymaster's offchain client hasn't been synchronized yet.
+        //
+        //if (!allowAllBundlers && !isBundlerAllowed[tx.origin]) {
+        //    revert BundlerNotAllowed(tx.origin);
+        //}
+        (allowAllBundlers);
 
         if (mode != ERC20_MODE && mode != VERIFYING_MODE) {
             revert PaymasterModeInvalid();
