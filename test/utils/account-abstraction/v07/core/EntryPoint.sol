@@ -48,7 +48,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         // note: solidity "type(IEntryPoint).interfaceId" is without inherited methods but we want to check everything
         return interfaceId
-            == (type(IEntryPoint).interfaceId ^ type(IStakeManager).interfaceId ^ type(INonceManager).interfaceId)
+                == (type(IEntryPoint).interfaceId ^ type(IStakeManager).interfaceId ^ type(INonceManager).interfaceId)
             || interfaceId == type(IEntryPoint).interfaceId || interfaceId == type(IStakeManager).interfaceId
             || interfaceId == type(INonceManager).interfaceId || super.supportsInterface(interfaceId);
     }
@@ -432,8 +432,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
                 uint256 bal = balanceOf(sender);
                 missingAccountFunds = bal > requiredPrefund ? 0 : requiredPrefund - bal;
             }
-            try IAccount(sender).validateUserOp{ gas: verificationGasLimit }(op, opInfo.userOpHash, missingAccountFunds)
-            returns (uint256 _validationData) {
+            try IAccount(sender).validateUserOp{ gas: verificationGasLimit }(
+                op, opInfo.userOpHash, missingAccountFunds
+            ) returns (
+                uint256 _validationData
+            ) {
                 validationData = _validationData;
             } catch {
                 revert FailedOpWithRevert(opIndex, "AA23 reverted", Exec.getReturnData(REVERT_REASON_MAX_LEN));
@@ -482,7 +485,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
             uint256 pmVerificationGasLimit = mUserOp.paymasterVerificationGasLimit;
             try IPaymaster(paymaster).validatePaymasterUserOp{ gas: pmVerificationGasLimit }(
                 op, opInfo.userOpHash, requiredPreFund
-            ) returns (bytes memory _context, uint256 _validationData) {
+            ) returns (
+                bytes memory _context, uint256 _validationData
+            ) {
                 context = _context;
                 validationData = _validationData;
             } catch {
@@ -536,9 +541,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
      * @return aggregator the aggregator of the validationData
      * @return outOfTimeRange true if current time is outside the time range of this validationData.
      */
-    function _getValidationData(
-        uint256 validationData
-    )
+    function _getValidationData(uint256 validationData)
         internal
         view
         returns (address aggregator, bool outOfTimeRange)
@@ -640,8 +643,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard,
                         try IPaymaster(paymaster).postOp{ gas: mUserOp.paymasterPostOpGasLimit }(
                             mode, context, actualGasCost, gasPrice
                         ) {
-                            // solhint-disable-next-line no-empty-blocks
-                        } catch {
+                        // solhint-disable-next-line no-empty-blocks
+                        }
+                        catch {
                             bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                             revert PostOpReverted(reason);
                         }

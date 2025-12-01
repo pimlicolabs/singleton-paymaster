@@ -102,9 +102,10 @@ contract SingletonPaymasterV6Test is Test {
         if (mode == VERIFYING_MODE) {
             return getVerifyingModeData(data, userOp, paymasterSignerKey);
         } else if (mode == ERC20_MODE) {
-            return getERC20ModeData(
-                data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), userOp, paymasterSignerKey
-            );
+            return
+                getERC20ModeData(
+                    data, address(token), POSTOP_GAS, EXCHANGE_RATE, uint128(0), userOp, paymasterSignerKey
+                );
         }
 
         revert("UNEXPECTED MODE");

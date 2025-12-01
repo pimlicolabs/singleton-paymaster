@@ -166,7 +166,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
     function supportsInterface(bytes4 interfaceId) public view virtual override returns (bool) {
         // note: solidity "type(IEntryPoint).interfaceId" is without inherited methods but we want to check everything
         return interfaceId
-            == (type(IEntryPoint).interfaceId ^ type(IStakeManager).interfaceId ^ type(INonceManager).interfaceId)
+                == (type(IEntryPoint).interfaceId ^ type(IStakeManager).interfaceId ^ type(INonceManager).interfaceId)
             || interfaceId == type(IEntryPoint).interfaceId || interfaceId == type(IStakeManager).interfaceId
             || interfaceId == type(INonceManager).interfaceId || super.supportsInterface(interfaceId);
     }
@@ -631,16 +631,15 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
         uint256 maxContextLength;
         uint256 len;
         assembly ("memory-safe") {
-            success :=
-                call(
-                    paymasterVerificationGasLimit,
-                    paymaster,
-                    0,
-                    add(validatePaymasterCall, 0x20),
-                    mload(validatePaymasterCall),
-                    0,
-                    0
-                )
+            success := call(
+                paymasterVerificationGasLimit,
+                paymaster,
+                0,
+                add(validatePaymasterCall, 0x20),
+                mload(validatePaymasterCall),
+                0,
+                0
+            )
             len := returndatasize()
             // return data from validatePaymasterUserOp is (bytes context, validationData)
             // encoded as:
@@ -831,8 +830,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuardT
                         try IPaymaster(paymaster).postOp{ gas: mUserOp.paymasterPostOpGasLimit }(
                             mode, context, actualGasCost, gasPrice
                         ) {
-                            // solhint-disable-next-line no-empty-blocks
-                        } catch {
+                        // solhint-disable-next-line no-empty-blocks
+                        }
+                        catch {
                             bytes memory reason = Exec.getReturnData(REVERT_REASON_MAX_LEN);
                             revert PostOpReverted(reason);
                         }

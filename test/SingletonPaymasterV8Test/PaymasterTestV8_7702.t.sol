@@ -3,7 +3,9 @@ pragma solidity ^0.8.0;
 
 import { BasePaymasterTestV8 } from "./BasePaymasterTestV8.t.sol";
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { PackedUserOperation as PackedUserOperationV8 } from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {
+    PackedUserOperation as PackedUserOperationV8
+} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
 import { Simple7702Account } from "../utils/account-abstraction/v08/accounts/SimpleAccount7702.sol";
 
 // 7702 account implementation for SingletonPaymasterV8

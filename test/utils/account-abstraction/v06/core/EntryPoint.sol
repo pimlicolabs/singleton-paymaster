@@ -454,7 +454,9 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
             }
             try IAccount(sender).validateUserOp{ gas: mUserOp.verificationGasLimit }(
                 op, opInfo.userOpHash, missingAccountFunds
-            ) returns (uint256 _validationData) {
+            ) returns (
+                uint256 _validationData
+            ) {
                 validationData = _validationData;
             } catch Error(string memory revertReason) {
                 revert FailedOp(opIndex, string.concat("AA23 reverted: ", revertReason));
@@ -503,8 +505,11 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
                 revert FailedOp(opIndex, "AA31 paymaster deposit too low");
             }
             paymasterInfo.deposit = uint112(deposit - requiredPreFund);
-            try IPaymaster(paymaster).validatePaymasterUserOp{ gas: gas }(op, opInfo.userOpHash, requiredPreFund)
-            returns (bytes memory _context, uint256 _validationData) {
+            try IPaymaster(paymaster).validatePaymasterUserOp{ gas: gas }(
+                op, opInfo.userOpHash, requiredPreFund
+            ) returns (
+                bytes memory _context, uint256 _validationData
+            ) {
                 context = _context;
                 validationData = _validationData;
             } catch Error(string memory revertReason) {
@@ -547,9 +552,7 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
         }
     }
 
-    function _getValidationData(
-        uint256 validationData
-    )
+    function _getValidationData(uint256 validationData)
         internal
         view
         returns (address aggregator, bool outOfTimeRange)
@@ -660,7 +663,8 @@ contract EntryPoint is IEntryPoint, StakeManager, NonceManager, ReentrancyGuard 
                         // solhint-disable-next-line no-empty-blocks
                         try IPaymaster(paymaster).postOp{ gas: mUserOp.verificationGasLimit }(
                             mode, context, actualGasCost
-                        ) { } catch Error(string memory reason) {
+                        ) { }
+                        catch Error(string memory reason) {
                             revert FailedOp(opIndex, string.concat("AA50 postOp reverted: ", reason));
                         } catch {
                             revert FailedOp(opIndex, "AA50 postOp revert");

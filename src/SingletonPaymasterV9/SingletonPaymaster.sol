@@ -15,6 +15,7 @@ import { IPaymasterV9 } from "./interfaces/IPaymasterV9.sol";
 import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
+using UserOperationLib for bytes;
 
 /// @title SingletonPaymasterV7
 /// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV7.sol)
@@ -126,6 +127,8 @@ contract SingletonPaymaster is BaseSingletonPaymaster, IPaymasterV9 {
         (uint8 mode, bool allowAllBundlers, bytes calldata paymasterConfig) =
             _parsePaymasterAndData(_userOp.paymasterAndData, PAYMASTER_DATA_OFFSET);
 
+        uint256 sigLength = _userOp.paymasterAndData.getPaymasterSignatureLength();
+
         if (!allowAllBundlers && !isBundlerAllowed[tx.origin]) {
             revert BundlerNotAllowed(tx.origin);
         }
@@ -138,12 +141,12 @@ contract SingletonPaymaster is BaseSingletonPaymaster, IPaymasterV9 {
         uint256 validationData;
 
         if (mode == VERIFYING_MODE) {
-            (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash);
+            (context, validationData) = _validateVerifyingMode(_userOp, paymasterConfig, _userOpHash, sigLength);
         }
 
         if (mode == ERC20_MODE) {
             (context, validationData) =
-                _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash, _requiredPreFund);
+                _validateERC20Mode(mode, _userOp, paymasterConfig, _userOpHash, _requiredPreFund, sigLength);
         }
 
         return (context, validationData);
@@ -159,12 +162,14 @@ contract SingletonPaymaster is BaseSingletonPaymaster, IPaymasterV9 {
     function _validateVerifyingMode(
         PackedUserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
-        bytes32 _userOpHash
+        bytes32 _userOpHash,
+        uint256 _sigLength
     )
         internal
         returns (bytes memory, uint256)
     {
-        (uint48 validUntil, uint48 validAfter, bytes calldata signature) = _parseVerifyingConfig(_paymasterConfig);
+        (uint48 validUntil, uint48 validAfter, bytes calldata signature) =
+            _parseVerifyingConfig(_paymasterConfig, _sigLength);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(VERIFYING_MODE, _userOp));
         address recoveredSigner = ECDSA.recover(hash, signature);
@@ -188,12 +193,13 @@ contract SingletonPaymaster is BaseSingletonPaymaster, IPaymasterV9 {
         PackedUserOperation calldata _userOp,
         bytes calldata _paymasterConfig,
         bytes32 _userOpHash,
-        uint256 _requiredPreFund
+        uint256 _requiredPreFund,
+        uint256 _sigLength
     )
         internal
         returns (bytes memory, uint256)
     {
-        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig);
+        ERC20PaymasterData memory cfg = _parseErc20Config(_paymasterConfig, _sigLength);
 
         bytes32 hash = MessageHashUtils.toEthSignedMessageHash(getHash(_mode, _userOp));
         address recoveredSigner = ECDSA.recover(hash, cfg.signature);

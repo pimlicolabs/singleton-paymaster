@@ -241,9 +241,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @param _paymasterConfig The paymaster configuration in bytes.
      * @return config The parsed paymaster configuration values.
      */
-    function _parseErc20Config(
-        bytes calldata _paymasterConfig
-    )
+    function _parseErc20Config(bytes calldata _paymasterConfig)
         internal
         pure
         returns (ERC20PaymasterData memory config)
@@ -273,7 +271,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         config.exchangeRate = uint256(bytes32(_paymasterConfig[configPointer:configPointer + 32])); // 32 bytes
         configPointer += 32;
         config.paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16
-            // bytes
+        // bytes
         configPointer += 16;
         config.treasury = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
         configPointer += 20;
@@ -336,9 +334,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65
      * bytes.
      */
-    function _parseVerifyingConfig(
-        bytes calldata _paymasterConfig
-    )
+    function _parseVerifyingConfig(bytes calldata _paymasterConfig)
         internal
         pure
         returns (uint48, uint48, bytes calldata)
@@ -425,9 +421,10 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         // the limit we are allowed for everything before the userOp is executed.
         uint256 preOpGasApproximation = _userOp.preVerificationGas + _userOp.unpackVerificationGasLimit() // VerificationGasLimit
             // is an overestimation.
-            + _cfg.paymasterValidationGasLimit; // paymasterValidationGasLimit has to be an under estimation to compensate
-            // for
-            // the overestimation.
+            + _cfg.paymasterValidationGasLimit; // paymasterValidationGasLimit has to be an under estimation to
+        // compensate
+        // for
+        // the overestimation.
 
         return abi.encode(
             ERC20PostOpContext({

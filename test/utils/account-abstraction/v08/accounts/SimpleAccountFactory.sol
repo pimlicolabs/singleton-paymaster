@@ -38,11 +38,9 @@ contract SimpleAccountFactory {
             return SimpleAccount(payable(addr));
         }
         ret = SimpleAccount(
-            payable(
-                new ERC1967Proxy{ salt: bytes32(salt) }(
+            payable(new ERC1967Proxy{ salt: bytes32(salt) }(
                     address(accountImplementation), abi.encodeCall(SimpleAccount.initialize, (owner))
-                )
-            )
+                ))
         );
     }
 

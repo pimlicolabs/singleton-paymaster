@@ -2,6 +2,7 @@
 src = "src"
 out = "out"
 libs = ["lib"]
+via-ir = true
 
 # EntryPoint V0.8 is built with minimum version of cancun
 solc = "0.8.28"

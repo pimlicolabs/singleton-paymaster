@@ -242,7 +242,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @return config The parsed paymaster configuration values.
      */
     function _parseErc20Config(
-        bytes calldata _paymasterConfig
+        bytes calldata _paymasterConfig,
+        uint256 _sigLength
     )
         internal
         pure
@@ -273,7 +274,7 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         config.exchangeRate = uint256(bytes32(_paymasterConfig[configPointer:configPointer + 32])); // 32 bytes
         configPointer += 32;
         config.paymasterValidationGasLimit = uint128(bytes16(_paymasterConfig[configPointer:configPointer + 16])); // 16
-            // bytes
+        // bytes
         configPointer += 16;
         config.treasury = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
         configPointer += 20;
@@ -306,7 +307,17 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
             config.recipient = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
             configPointer += 20;
         }
-        config.signature = _paymasterConfig[configPointer:];
+
+        // Extract signature based on mode
+        if (_sigLength > 0) {
+            // Async mode: Exclude [uint16(2)][magic(8)] suffix
+            uint256 signatureEnd = _paymasterConfig.length - UserOperationLib.PAYMASTER_SUFFIX_LEN; // Exclude suffix (2
+            // + 8 bytes)
+            config.signature = _paymasterConfig[configPointer:signatureEnd];
+        } else {
+            // Sync mode: Everything remaining is signature
+            config.signature = _paymasterConfig[configPointer:];
+        }
 
         if (config.token == address(0)) {
             revert TokenAddressInvalid();
@@ -337,7 +348,8 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * bytes.
      */
     function _parseVerifyingConfig(
-        bytes calldata _paymasterConfig
+        bytes calldata _paymasterConfig,
+        uint256 _sigLength
     )
         internal
         pure
@@ -349,7 +361,19 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
 
         uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
         uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
-        bytes calldata signature = _paymasterConfig[12:];
+
+        bytes calldata signature;
+
+        if (_sigLength > 0) {
+            // Async mode: Extract just the signature bytes (exclude [uint16(2)][magic(8)] suffix)
+            // Structure: [validUntil 6][validAfter 6][signature N][uint16 2][magic 8]
+            uint256 signatureEnd = _paymasterConfig.length - UserOperationLib.PAYMASTER_SUFFIX_LEN; // Exclude suffix (2
+            // + 8 bytes)
+            signature = _paymasterConfig[12:signatureEnd];
+        } else {
+            // Sync mode: Everything after validUntil/validAfter is signature
+            signature = _paymasterConfig[12:];
+        }
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();
@@ -425,9 +449,10 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
         // the limit we are allowed for everything before the userOp is executed.
         uint256 preOpGasApproximation = _userOp.preVerificationGas + _userOp.unpackVerificationGasLimit() // VerificationGasLimit
             // is an overestimation.
-            + _cfg.paymasterValidationGasLimit; // paymasterValidationGasLimit has to be an under estimation to compensate
-            // for
-            // the overestimation.
+            + _cfg.paymasterValidationGasLimit; // paymasterValidationGasLimit has to be an under estimation to
+        // compensate
+        // for
+        // the overestimation.
 
         return abi.encode(
             ERC20PostOpContext({
