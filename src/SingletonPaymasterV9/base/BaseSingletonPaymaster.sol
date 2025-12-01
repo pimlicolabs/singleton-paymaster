@@ -6,8 +6,8 @@ import { BasePaymaster } from "./BasePaymaster.sol";
 import { MultiSigner } from "./MultiSigner.sol";
 
 import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
-import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "@account-abstraction-v9/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v9/interfaces/PackedUserOperation.sol";
 
 import { ManagerAccessControl } from "./ManagerAccessControl.sol";
 
@@ -241,7 +241,10 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @param _paymasterConfig The paymaster configuration in bytes.
      * @return config The parsed paymaster configuration values.
      */
-    function _parseErc20Config(bytes calldata _paymasterConfig)
+    function _parseErc20Config(
+        bytes calldata _paymasterConfig,
+        uint256 _sigLength
+    )
         internal
         pure
         returns (ERC20PaymasterData memory config)
@@ -304,7 +307,17 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
             config.recipient = address(bytes20(_paymasterConfig[configPointer:configPointer + 20])); // 20 bytes
             configPointer += 20;
         }
-        config.signature = _paymasterConfig[configPointer:];
+
+        // Extract signature based on mode
+        if (_sigLength > 0) {
+            // Async mode: Exclude [uint16(2)][magic(8)] suffix
+            uint256 signatureEnd = _paymasterConfig.length - UserOperationLib.PAYMASTER_SUFFIX_LEN; // Exclude suffix (2
+            // + 8 bytes)
+            config.signature = _paymasterConfig[configPointer:signatureEnd];
+        } else {
+            // Sync mode: Everything remaining is signature
+            config.signature = _paymasterConfig[configPointer:];
+        }
 
         if (config.token == address(0)) {
             revert TokenAddressInvalid();
@@ -334,7 +347,10 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
      * @dev The function reverts if the configuration length is invalid or if the signature length is not 64 or 65
      * bytes.
      */
-    function _parseVerifyingConfig(bytes calldata _paymasterConfig)
+    function _parseVerifyingConfig(
+        bytes calldata _paymasterConfig,
+        uint256 _sigLength
+    )
         internal
         pure
         returns (uint48, uint48, bytes calldata)
@@ -345,7 +361,19 @@ abstract contract BaseSingletonPaymaster is ManagerAccessControl, BasePaymaster,
 
         uint48 validUntil = uint48(bytes6(_paymasterConfig[0:6]));
         uint48 validAfter = uint48(bytes6(_paymasterConfig[6:12]));
-        bytes calldata signature = _paymasterConfig[12:];
+
+        bytes calldata signature;
+
+        if (_sigLength > 0) {
+            // Async mode: Extract just the signature bytes (exclude [uint16(2)][magic(8)] suffix)
+            // Structure: [validUntil 6][validAfter 6][signature N][uint16 2][magic 8]
+            uint256 signatureEnd = _paymasterConfig.length - UserOperationLib.PAYMASTER_SUFFIX_LEN; // Exclude suffix (2
+            // + 8 bytes)
+            signature = _paymasterConfig[12:signatureEnd];
+        } else {
+            // Sync mode: Everything after validUntil/validAfter is signature
+            signature = _paymasterConfig[12:];
+        }
 
         if (signature.length != 64 && signature.length != 65) {
             revert PaymasterSignatureLengthInvalid();

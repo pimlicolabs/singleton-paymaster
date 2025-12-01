@@ -7,14 +7,19 @@ import { IERC20 } from "openzeppelin-contracts-v5.0.2/contracts/token/ERC20/IERC
 
 import { IEntryPoint } from "@account-abstraction-v8/interfaces/IEntryPoint.sol";
 import { PackedUserOperation } from "account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { PackedUserOperation as PackedUserOperationV8 } from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
+import {
+    PackedUserOperation as PackedUserOperationV8
+} from "account-abstraction-v8/interfaces/PackedUserOperation.sol";
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { ERC20PostOpContext, BaseSingletonPaymaster } from "../../src/base/BaseSingletonPaymaster.sol";
 import { SingletonPaymasterV8 } from "../../src/SingletonPaymasterV8.sol";
 import { PostOpMode } from "../../src/interfaces/PostOpMode.sol";
 
-import { SimpleAccountFactory, SimpleAccount } from "../utils/account-abstraction/v08/accounts/SimpleAccountFactory.sol";
+import {
+    SimpleAccountFactory,
+    SimpleAccount
+} from "../utils/account-abstraction/v08/accounts/SimpleAccountFactory.sol";
 import { EntryPoint } from "../utils/account-abstraction/v08/core/EntryPoint.sol";
 import { BaseAccount } from "../utils/account-abstraction/v08/core/BaseAccount.sol";
 import { TestERC20 } from "../utils/TestERC20.sol";
@@ -67,7 +72,7 @@ abstract contract BasePaymasterTestV8 is Test {
     EntryPoint entryPoint;
     TestERC20 token;
     TestCounter counter;
-    
+
     // Fixed address for the EntryPoint as expected by Simple7702Account
     address constant ENTRY_POINT_ADDRESS = 0x4337084D9E255Ff0702461CF8895CE9E3b5Ff108;
 
@@ -92,13 +97,13 @@ abstract contract BasePaymasterTestV8 is Test {
 
         // Create a temporary EntryPoint to get its code
         EntryPoint tempEntryPoint = new EntryPoint();
-        
+
         // Get the runtime bytecode of the EntryPoint
         bytes memory entryPointCode = address(tempEntryPoint).code;
-        
+
         // Set up the EntryPoint at the specific address
         vm.etch(ENTRY_POINT_ADDRESS, entryPointCode);
-        
+
         // Now point to the EntryPoint at the specific address
         entryPoint = EntryPoint(payable(ENTRY_POINT_ADDRESS));
 
@@ -696,8 +701,9 @@ abstract contract BasePaymasterTestV8 is Test {
 
         PackedUserOperation memory op = fillUserOp(account);
 
-        op.paymasterAndData =
-            getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, constantFeePresent, recipientPresent, uint128(0));
+        op.paymasterAndData = getSignedPaymasterData(
+            ERC20_MODE, ALLOW_ALL_BUNDLERS, op, constantFeePresent, recipientPresent, uint128(0)
+        );
         op.signature = signUserOp(op, userKey);
 
         vm.expectEmit(address(entryPoint));

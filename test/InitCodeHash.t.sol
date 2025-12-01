@@ -80,15 +80,7 @@ contract InitCodeHashTest is Test {
     }
 
     // Helper function to calculate CREATE2 address
-    function _getCreate2Address(
-        address deployer,
-        bytes32 salt,
-        bytes memory bytecode
-    )
-        internal
-        pure
-        returns (address)
-    {
+    function _getCreate2Address(address deployer, bytes32 salt, bytes memory bytecode) internal pure returns (address) {
         bytes32 hash = keccak256(abi.encodePacked(bytes1(0xff), deployer, salt, keccak256(bytecode)));
         return address(uint160(uint256(hash)));
     }

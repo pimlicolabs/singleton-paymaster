@@ -1305,10 +1305,7 @@ contract SingletonPaymasterV6Test is Test {
         returns (bytes memory)
     {
         PaymasterData memory data = PaymasterData({
-            paymasterAddress: address(paymaster),
-            validUntil: 0,
-            validAfter: 0,
-            allowAllBundlers: allowAllBundlers
+            paymasterAddress: address(paymaster), validUntil: 0, validAfter: 0, allowAllBundlers: allowAllBundlers
         });
 
         if (mode == VERIFYING_MODE) {

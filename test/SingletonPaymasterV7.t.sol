@@ -646,8 +646,9 @@ contract SingletonPaymasterV7Test is Test {
 
         PackedUserOperation memory op = fillUserOp();
 
-        op.paymasterAndData =
-            getSignedPaymasterData(ERC20_MODE, ALLOW_ALL_BUNDLERS, op, constantFeePresent, recipientPresent, uint128(0));
+        op.paymasterAndData = getSignedPaymasterData(
+            ERC20_MODE, ALLOW_ALL_BUNDLERS, op, constantFeePresent, recipientPresent, uint128(0)
+        );
         op.signature = signUserOp(op, userKey);
 
         vm.expectEmit(address(entryPoint));
