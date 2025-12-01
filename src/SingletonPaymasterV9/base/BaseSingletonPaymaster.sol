@@ -6,8 +6,8 @@ import { BasePaymaster } from "./BasePaymaster.sol";
 import { MultiSigner } from "./MultiSigner.sol";
 
 import { UserOperation } from "@account-abstraction-v6/interfaces/IPaymaster.sol";
-import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
-import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "@account-abstraction-v9/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v9/interfaces/PackedUserOperation.sol";
 
 import { ManagerAccessControl } from "./ManagerAccessControl.sol";
 

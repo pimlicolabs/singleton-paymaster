@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-/// @note EntryPointV8 and EntryPointV7 share the same PackedUserOperation struct.
+/// @custom:note EntryPointV8 and EntryPointV9 share the same PackedUserOperation struct.
 import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
 import { SingletonPaymasterV7 } from "./SingletonPaymasterV7.sol";
 import { Eip7702Support } from "./misc/Eip7702Support.sol";

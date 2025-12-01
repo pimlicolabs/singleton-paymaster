@@ -1,25 +1,25 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-/// @note EntryPointV8 and EntryPointV7 share the same PackedUserOperation struct.
-import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { SingletonPaymasterV7 } from "./SingletonPaymasterV7.sol";
+/// @custom:note EntryPointV8 and EntryPointV9 share the same PackedUserOperation struct.
+import { PackedUserOperation } from "@account-abstraction-v9/interfaces/PackedUserOperation.sol";
+import { SingletonPaymaster } from "./SingletonPaymaster.sol";
 import { Eip7702Support } from "./misc/Eip7702Support.sol";
 
-/// @title SingletonPaymasterV8
-/// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV8.sol)
+/// @title SingletonPaymasterV9
+/// @author Pimlico (https://github.com/pimlicolabs/singleton-paymaster/blob/main/src/SingletonPaymasterV9.sol)
 /// @author Using Solady (https://github.com/vectorized/solady)
 /// @notice An ERC-4337 Paymaster contract that extends SingletonPaymasterV7 where getHash is 7702 aware.
 /// @dev Inherits from SingletonPaymasterV7
 /// @custom:security-contact security@pimlico.io
-contract SingletonPaymasterV8 is SingletonPaymasterV7 {
+contract SingletonPaymasterV9 is SingletonPaymaster {
     constructor(
         address _entryPoint,
         address _owner,
         address _manager,
         address[] memory _signers
     )
-        SingletonPaymasterV7(_entryPoint, _owner, _manager, _signers)
+        SingletonPaymaster(_entryPoint, _owner, _manager, _signers)
     { }
 
     /**

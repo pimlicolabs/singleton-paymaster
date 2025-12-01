@@ -2,8 +2,8 @@ pragma solidity ^0.8.28;
 // SPDX-License-Identifier: MIT
 // solhint-disable no-inline-assembly
 
-import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v9/interfaces/PackedUserOperation.sol";
+import { UserOperationLib } from "@account-abstraction-v9/core/UserOperationLib.sol";
 
 // Adapted from
 // https://github.com/eth-infinitism/account-abstraction/blob/releases/v0.8/contracts/core/Eip7702Support.sol

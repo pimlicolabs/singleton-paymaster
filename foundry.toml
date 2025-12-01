@@ -28,3 +28,6 @@ number_underscore = "thousands"
 quote_style = "double"
 tab_width = 4
 wrap_comments = true
+
+[lint]
+lint_on_build = false

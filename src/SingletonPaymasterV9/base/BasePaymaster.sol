@@ -4,7 +4,7 @@ pragma solidity ^0.8.0;
 /* solhint-disable reason-string */
 
 import { ManagerAccessControl } from "./ManagerAccessControl.sol";
-import { IEntryPoint } from "@account-abstraction-v7/interfaces/IEntryPoint.sol";
+import { IEntryPoint } from "@account-abstraction-v9/interfaces/IEntryPoint.sol";
 
 /**
  * Helper class for creating a paymaster.

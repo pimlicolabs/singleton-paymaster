@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.26;
 
-import { PackedUserOperation } from "@account-abstraction-v7/interfaces/PackedUserOperation.sol";
-import { _packValidationData } from "@account-abstraction-v7/core/Helpers.sol";
-import { UserOperationLib } from "@account-abstraction-v7/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v9/interfaces/PackedUserOperation.sol";
+import { _packValidationData } from "@account-abstraction-v9/core/Helpers.sol";
+import { UserOperationLib } from "@account-abstraction-v9/core/UserOperationLib.sol";
 
 import { ECDSA } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/ECDSA.sol";
 import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptography/MessageHashUtils.sol";
@@ -11,7 +11,7 @@ import { MessageHashUtils } from "@openzeppelin-v5.0.2/contracts/utils/cryptogra
 import { SafeTransferLib } from "solady/utils/SafeTransferLib.sol";
 
 import { BaseSingletonPaymaster, ERC20PaymasterData, ERC20PostOpContext } from "./base/BaseSingletonPaymaster.sol";
-import { IPaymasterV7 } from "./interfaces/IPaymasterV7.sol";
+import { IPaymasterV9 } from "./interfaces/IPaymasterV9.sol";
 import { PostOpMode } from "./interfaces/PostOpMode.sol";
 
 using UserOperationLib for PackedUserOperation;
@@ -25,7 +25,7 @@ using UserOperationLib for PackedUserOperation;
 /// balance.
 /// @dev Inherits from BaseSingletonPaymaster.
 /// @custom:security-contact security@pimlico.io
-contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
+contract SingletonPaymaster is BaseSingletonPaymaster, IPaymasterV9 {
     /*´:°•.°+.*•´.*:˚.°*.˚•´.°:°•.°•.*•´.*:˚.°*.˚•´.°:°•.°+.*•´.*:*/
     /*                  CONSTANTS AND IMMUTABLES                  */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
@@ -51,7 +51,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     /*        ENTRYPOINT V0.7 ERC-4337 PAYMASTER OVERRIDES        */
     /*.•°:°.´+˚.*°.˚:*.´•*.+°.•°:´*.´•*.•°.•°:°.´:•˚°.*°.˚:*.´+°.•*/
 
-    /// @inheritdoc IPaymasterV7
+    /// @inheritdoc IPaymasterV9
     function validatePaymasterUserOp(
         PackedUserOperation calldata userOp,
         bytes32 userOpHash,
@@ -65,7 +65,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         return _validatePaymasterUserOp(userOp, userOpHash, requiredPreFund);
     }
 
-    /// @inheritdoc IPaymasterV7
+    /// @inheritdoc IPaymasterV9
     function postOp(
         PostOpMode mode,
         bytes calldata context,
@@ -172,7 +172,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         bool isSignatureValid = signers[recoveredSigner];
         uint256 validationData = _packValidationData(!isSignatureValid, validUntil, validAfter);
 
-        emit UserOperationSponsored(_userOpHash, _userOp.getSender(), VERIFYING_MODE, address(0), 0, 0);
+        emit UserOperationSponsored(_userOpHash, _getSender(_userOp), VERIFYING_MODE, address(0), 0, 0);
         return ("", validationData);
     }
 
@@ -348,7 +348,7 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
     {
         bytes32 userOpHash = keccak256(
             abi.encode(
-                _userOp.getSender(),
+                _getSender(_userOp),
                 _userOp.nonce,
                 _userOp.accountGasLimits,
                 _userOp.preVerificationGas,
@@ -361,5 +361,14 @@ contract SingletonPaymasterV7 is BaseSingletonPaymaster, IPaymasterV7 {
         );
 
         return keccak256(abi.encode(userOpHash, block.chainid));
+    }
+
+    function _getSender(PackedUserOperation calldata userOp) internal pure returns (address) {
+        address data;
+        //read sender from userOp, which is first userOp member (saves 800 gas...)
+        assembly {
+            data := calldataload(userOp)
+        }
+        return address(uint160(data));
     }
 }

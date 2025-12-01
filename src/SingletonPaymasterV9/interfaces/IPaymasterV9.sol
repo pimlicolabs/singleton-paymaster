@@ -1,14 +1,14 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.0;
 
-import { PackedUserOperation } from "@account-abstraction-v7/core/UserOperationLib.sol";
+import { PackedUserOperation } from "@account-abstraction-v9/core/UserOperationLib.sol";
 import { PostOpMode } from "./PostOpMode.sol";
 
 /**
  * The interface exposed by a paymaster contract, who agrees to pay the gas for user's operations.
  * A paymaster must hold a stake to cover the required entrypoint stake and also the gas for the transaction.
  */
-interface IPaymasterV7 {
+interface IPaymasterV9 {
     /**
      * Payment validation: check if paymaster agrees to pay.
      * Must verify sender is the entryPoint.
